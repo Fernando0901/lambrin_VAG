@@ -1,18 +1,23 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import ProductSelector from './components/ProductSelector'
 import AreaInput from './components/AreaInput'
 import AreaVisualizer from './components/AreaVisualizer'
 import ResultsTable from './components/ResultsTable'
 import PrintSummary from './components/PrintSummary'
+import PriceManager from './components/PriceManager'
 import { products } from './data/products'
-import { calculateMaterial } from './utils/calculator'
+import { calculateBothModes } from './utils/calculator'
+import { usePrices } from './context/PriceContext'
 
 function App() {
   const [selectedProduct, setSelectedProduct] = useState('lambrin')
   const [selectedColor, setSelectedColor] = useState(products.lambrin.colors[0])
   const [areas, setAreas] = useState([])
-  const [calculation, setCalculation] = useState(null)
+  const [calculationBoth, setCalculationBoth] = useState(null)
+  const [priceDrawerOpen, setPriceDrawerOpen] = useState(false)
+
+  const { prices, priceMode, showToast, toastMessage } = usePrices()
 
   useEffect(() => {
     if (selectedProduct) {
@@ -24,28 +29,17 @@ function App() {
 
   useEffect(() => {
     if (areas.length > 0 && selectedProduct && selectedColor) {
-      const result = calculateMaterial(selectedProduct, areas, selectedColor)
-      setCalculation(result)
+      const result = calculateBothModes(selectedProduct, areas, selectedColor, prices)
+      setCalculationBoth(result)
     } else {
-      setCalculation(null)
+      setCalculationBoth(null)
     }
-  }, [selectedProduct, areas, selectedColor])
+  }, [selectedProduct, areas, selectedColor, prices])
 
-  const handleProductChange = (productId) => {
-    setSelectedProduct(productId)
-  }
-
-  const handleColorChange = (color) => {
-    setSelectedColor(color)
-  }
-
-  const handleAreaAdd = (area) => {
-    setAreas(prev => [...prev, area])
-  }
-
-  const handleAreaRemove = (index) => {
-    setAreas(prev => prev.filter((_, i) => i !== index))
-  }
+  const handleProductChange = (productId) => setSelectedProduct(productId)
+  const handleColorChange = (color) => setSelectedColor(color)
+  const handleAreaAdd = (area) => setAreas(prev => [...prev, area])
+  const handleAreaRemove = (index) => setAreas(prev => prev.filter((_, i) => i !== index))
 
   const pageVariants = {
     initial: { opacity: 0 },
@@ -53,9 +47,15 @@ function App() {
     exit: { opacity: 0 }
   }
 
+  const badgeClass = priceMode === 'venta'
+    ? 'bg-green-500/20 text-green-400 border-green-500/30'
+    : 'bg-red-500/20 text-red-400 border-red-500/30'
+
+  const currentProduct = products[selectedProduct]
+
   return (
     <div className="min-h-screen bg-bg-dark">
-      <header className="bg-surface border-b border-border-subtle sticky top-0 z-50 no-print">
+      <header className="bg-surface border-b border-border-subtle sticky top-0 z-40 no-print">
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -73,13 +73,42 @@ function App() {
                 </p>
               </div>
             </div>
-            <div className="hidden sm:flex items-center gap-2 text-sm text-text-secondary">
-              <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-              <span> Precios sin IVA</span>
+
+            <div className="flex items-center gap-3">
+              <span className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border ${badgeClass}`}>
+                <span className="w-1.5 h-1.5 rounded-full bg-current" />
+                {priceMode === 'venta' ? 'Viendo: Precio Venta' : 'Viendo: Precio Costo'}
+              </span>
+
+              <button
+                onClick={() => setPriceDrawerOpen(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-bg-dark hover:bg-border-subtle text-text-secondary hover:text-text-primary border border-border-subtle rounded-lg transition-colors text-sm font-medium"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <span className="hidden sm:inline">Precios</span>
+              </button>
             </div>
           </div>
         </div>
       </header>
+
+      <AnimatePresence>
+        {showToast && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="fixed top-20 left-1/2 -translate-x-1/2 z-[60] bg-surface border border-accent/30 text-text-primary px-4 py-2 rounded-lg shadow-lg text-sm"
+          >
+            {toastMessage}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <PriceManager isOpen={priceDrawerOpen} onClose={() => setPriceDrawerOpen(false)} />
 
       <main className="max-w-7xl mx-auto px-4 py-6">
         <AnimatePresence mode="wait">
@@ -110,23 +139,23 @@ function App() {
                 />
               </div>
 
-              <PrintSummary calculation={calculation} />
+              <PrintSummary calculationBoth={calculationBoth} priceMode={priceMode} />
             </div>
 
             <div className="space-y-6">
-              {calculation && (
+              {calculationBoth && (
                 <>
                   <AreaVisualizer
                     areas={areas}
-                    pieceWidth={calculation.pieceWidth}
-                    pieceLength={calculation.pieceLength}
+                    pieceWidth={calculationBoth.venta.pieceWidth}
+                    pieceLength={calculationBoth.venta.pieceLength}
                     color={selectedColor?.hex || '#D97706'}
-                    productName={products[selectedProduct]?.name}
+                    productName={currentProduct?.name}
                   />
                 </>
               )}
 
-              <ResultsTable calculation={calculation} />
+              <ResultsTable calculationBoth={calculationBoth} />
             </div>
           </motion.div>
         </AnimatePresence>

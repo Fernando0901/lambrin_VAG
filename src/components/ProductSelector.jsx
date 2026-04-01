@@ -1,9 +1,16 @@
 import { motion } from 'framer-motion'
 import { products } from '../data/products'
+import { usePrices } from '../context/PriceContext'
 
 const productList = Object.values(products)
 
 export default function ProductSelector({ selectedProduct, selectedColor, onProductChange, onColorChange }) {
+  const { priceMode } = usePrices()
+
+  const badgeClass = priceMode === 'venta'
+    ? 'bg-green-500/20 text-green-400 border-green-500/30'
+    : 'bg-red-500/20 text-red-400 border-red-500/30'
+
   return (
     <div className="space-y-6">
       <div>
@@ -49,9 +56,15 @@ export default function ProductSelector({ selectedProduct, selectedColor, onProd
       </div>
 
       <div>
-        <h3 className="text-lg font-heading font-semibold text-text-primary mb-4 uppercase tracking-wide">
-          Selecciona un Color
-        </h3>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-heading font-semibold text-text-primary uppercase tracking-wide">
+            Selecciona un Color
+          </h3>
+          <span className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${badgeClass}`}>
+            <span className="w-1.5 h-1.5 rounded-full bg-current" />
+            {priceMode === 'venta' ? 'Venta' : 'Costo'}
+          </span>
+        </div>
         <div className="flex flex-wrap gap-3">
           {products[selectedProduct]?.colors.map((color) => (
             <motion.button

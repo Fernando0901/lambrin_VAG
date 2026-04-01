@@ -1,24 +1,36 @@
+const MARGIN_MULTIPLIER = 1.30
+
+const buildPrecios = (costoPieza, costoCaja, piezasPorCaja) => ({
+  costo: {
+    pieza: costoPieza,
+    caja: costoCaja
+  },
+  venta: {
+    pieza: parseFloat((costoPieza * MARGIN_MULTIPLIER).toFixed(2)),
+    caja: parseFloat((costoCaja * MARGIN_MULTIPLIER).toFixed(2))
+  }
+})
+
 export const products = {
   lambrin: {
     id: 'lambrin',
     name: 'Lambrin WPC Interior',
     dimensions: { width: 0.16, length: 2.90 },
     piecesPerBox: 14,
-    pricePerPiece: 84.98,
-    pricePerBox: 1189.72,
-    accessory: {
-      name: 'CLIP de instalación',
-      unitPrice: 2.62,
-      boxPrice: 262.40,
-      piecesPerBox: 100,
-      clipsPerPiece: 3
-    },
-    secondaryAccessory: {
-      name: 'Ángulo 3.0 m',
-      unitPrice: 60.00,
-      boxPrice: 3000.00,
-      piecesPerBox: 50,
-      length: 3.0
+    precios: buildPrecios(84.98, 1189.72, 14),
+    accesorios: {
+      clip: {
+        nombre: 'Clip de instalación',
+        porPieza: 3,
+        piezasPorCaja: 100,
+        precios: buildPrecios(2.62, 262.40, 100)
+      },
+      angulo: {
+        nombre: 'Ángulo 3.0 m',
+        largo: 3.0,
+        piezasPorCaja: 50,
+        precios: buildPrecios(60.00, 3000.00, 50)
+      }
     },
     colors: [
       { name: 'Nogal', hex: '#8B6914' },
@@ -33,12 +45,16 @@ export const products = {
     name: 'Piso SPC',
     dimensions: { width: 0.18, length: 1.22 },
     piecesPerBox: 10,
-    pricePerPiece: 70.00,
-    pricePerBox: 700.00,
-    accessory: {
-      name: 'Esquinero 2.40 m',
-      unitPrice: 140.00,
-      length: 2.40
+    precios: buildPrecios(70.00, 700.00, 10),
+    accesorios: {
+      esquinero: {
+        nombre: 'Esquinero 2.40 m',
+        largo: 2.40,
+        precios: {
+          costo: { pieza: 140.00, caja: null },
+          venta: { pieza: parseFloat((140.00 * MARGIN_MULTIPLIER).toFixed(2)), caja: null }
+        }
+      }
     },
     colors: [
       { name: 'Nogal', hex: '#8B6914' },
@@ -52,14 +68,14 @@ export const products = {
     name: 'Duela PVC',
     dimensions: { width: 0.25, length: 3.0 },
     piecesPerBox: 10,
-    pricePerPiece: 90.00,
-    pricePerBox: 900.00,
-    accessory: {
-      name: 'Perfil 3.0 m',
-      unitPrice: 43.23,
-      boxPrice: 864.62,
-      piecesPerBox: 20,
-      length: 3.0
+    precios: buildPrecios(90.00, 900.00, 10),
+    accesorios: {
+      perfil: {
+        nombre: 'Perfil 3.0 m',
+        largo: 3.0,
+        piezasPorCaja: 20,
+        precios: buildPrecios(43.23, 864.62, 20)
+      }
     },
     colors: [
       { name: 'Ipé', hex: '#5C3D1E' },
@@ -73,9 +89,27 @@ export const products = {
 
 export const IVA = 0.16
 
+export const STORAGE_KEY = 'vag_precios_v1'
+
 export const formatCurrency = (amount) => {
   return new Intl.NumberFormat('es-MX', {
     style: 'currency',
     currency: 'MXN'
-  }).format(amount)
+  }).format(amount || 0)
+}
+
+export const getDefaultPrices = () => {
+  const result = {}
+  for (const [pid, product] of Object.entries(products)) {
+    result[pid] = {
+      precios: JSON.parse(JSON.stringify(product.precios)),
+      accesorios: {}
+    }
+    for (const [aid, acc] of Object.entries(product.accesorios || {})) {
+      result[pid].accesorios[aid] = {
+        precios: JSON.parse(JSON.stringify(acc.precios))
+      }
+    }
+  }
+  return result
 }

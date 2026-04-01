@@ -2,14 +2,16 @@ import React from 'react'
 import { motion } from 'framer-motion'
 import { formatCurrency } from '../data/products'
 
-export default function PrintSummary({ calculation }) {
+export default function PrintSummary({ calculationBoth, priceMode }) {
   const handlePrint = () => {
     window.print()
   }
 
-  if (!calculation) return null
+  if (!calculationBoth) return null
 
-  const { product, piecesNeeded, boxesNeeded, grandTotal, grandTotalWithIVA, ivaAmount, totalArea, areas } = calculation
+  const { venta, costo, margenMonto, margenPct } = calculationBoth
+  const current = priceMode === 'venta' ? venta : costo
+
   const currentDate = new Date().toLocaleDateString('es-MX', {
     year: 'numeric',
     month: 'long',
@@ -50,17 +52,20 @@ export default function PrintSummary({ calculation }) {
             Cotización de Materiales
           </h1>
           <p className="text-sm text-gray-600 mt-1">Fecha: {currentDate}</p>
+          <p className="text-xs text-gray-500 mt-1">
+            Modo: {priceMode === 'venta' ? 'Precio de Venta' : 'Precio de Costo'}
+          </p>
         </div>
 
         <div className="mb-6 p-4 bg-gray-100 rounded-lg">
           <h2 className="font-heading font-semibold text-lg text-gray-800">
-            {product.name}
+            {current.product.name}
           </h2>
           <p className="text-sm text-gray-600">
-            Color: {product.selectedColor?.name || 'No seleccionado'}
+            Color: {current.product.selectedColor?.name || 'No seleccionado'}
           </p>
           <p className="text-sm text-gray-600">
-            Dimensiones: {product.dimensions.width} m × {product.dimensions.length} m
+            Dimensiones: {current.product.dimensions.width} m × {current.product.dimensions.length} m
           </p>
         </div>
 
@@ -69,14 +74,14 @@ export default function PrintSummary({ calculation }) {
             Áreas Ingresadas
           </h3>
           <ul className="text-sm text-gray-600 space-y-1">
-            {areas.map((area, i) => (
+            {current.areas.map((area, i) => (
               <li key={i}>
-                {product.inputType === 'wall' ? 'Pared' : 'Área'} {i + 1}: {area.width} m × {area.length} m = {(area.width * area.length).toFixed(2)} m²
+                {current.product.inputType === 'wall' ? 'Pared' : 'Área'} {i + 1}: {area.width} m × {area.length} m = {(area.width * area.length).toFixed(2)} m²
               </li>
             ))}
           </ul>
           <p className="text-sm font-medium text-gray-800 mt-2">
-            Área total: <span className="text-amber-600">{totalArea.toFixed(2)} m²</span>
+            Área total: <span className="text-amber-600">{current.totalArea.toFixed(2)} m²</span>
           </p>
         </div>
 
@@ -85,14 +90,14 @@ export default function PrintSummary({ calculation }) {
             Resumen de Material
           </h3>
           <div className="text-sm text-gray-600 space-y-1">
-            <p>Piezas necesarias: <span className="font-medium">{piecesNeeded}</span></p>
-            <p>Cajas necesarias: <span className="font-medium">{boxesNeeded}</span></p>
+            <p>Piezas necesarias: <span className="font-medium">{current.piecesNeeded}</span></p>
+            <p>Cajas necesarias: <span className="font-medium">{current.boxesNeeded}</span></p>
           </div>
         </div>
 
         <div className="mb-6">
           <h3 className="font-heading font-semibold text-gray-800 border-b pb-2 mb-3">
-            Costos
+            Costos ({priceMode === 'venta' ? 'Venta' : 'Costo'})
           </h3>
           <table className="print-table">
             <thead>
@@ -105,26 +110,35 @@ export default function PrintSummary({ calculation }) {
             <tbody>
               <tr>
                 <td>Material principal</td>
-                <td className="text-right">{formatCurrency(grandTotal)}</td>
-                <td className="text-right">{formatCurrency(grandTotalWithIVA - ivaAmount)}</td>
+                <td className="text-right">{formatCurrency(current.grandTotal)}</td>
+                <td className="text-right">{formatCurrency(current.grandTotalWithIVA - current.ivaAmount)}</td>
               </tr>
               <tr>
                 <td>IVA (16%)</td>
                 <td className="text-right">-</td>
-                <td className="text-right">{formatCurrency(ivaAmount)}</td>
+                <td className="text-right">{formatCurrency(current.ivaAmount)}</td>
               </tr>
               <tr className="font-bold bg-gray-100">
                 <td>TOTAL</td>
-                <td className="text-right">{formatCurrency(grandTotal)}</td>
-                <td className="text-right text-amber-600">{formatCurrency(grandTotalWithIVA)}</td>
+                <td className="text-right">{formatCurrency(current.grandTotal)}</td>
+                <td className="text-right text-amber-600">{formatCurrency(current.grandTotalWithIVA)}</td>
               </tr>
             </tbody>
           </table>
         </div>
 
+        <div className="mb-6 p-3 bg-gray-50 rounded border">
+          <p className="text-sm text-gray-600">
+            Margen de ganancia: <span className="font-medium text-green-600">{formatCurrency(margenMonto)} ({margenPct.toFixed(1)}%)</span>
+          </p>
+          <p className="text-xs text-gray-500 mt-1">
+            Costo total c/IVA: {formatCurrency(costo.grandTotalWithIVA)} vs Venta total c/IVA: {formatCurrency(venta.grandTotalWithIVA)}
+          </p>
+        </div>
+
         <div className="text-center text-xs text-gray-500 mt-8 pt-4 border-t">
           <p>Esta cotización es válida por 30 días a partir de la fecha de emisión.</p>
-          <p className="mt-1">Los precios shown son en pesos mexicanos (MXN) e incluyen IVA.</p>
+          <p className="mt-1">Los precios mostrados son en pesos mexicanos (MXN) e incluyen IVA.</p>
         </div>
       </div>
     </motion.div>
