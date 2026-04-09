@@ -36,7 +36,8 @@ export const products = {
       { name: 'Nogal', hex: '#8B6914' },
       { name: 'Parota', hex: '#6B3A2A' },
       { name: 'Roble', hex: '#A0784A' },
-      { name: 'Cerezano', hex: '#7B3F3F' }
+      { name: 'Cerezano', hex: '#7B3F3F' },
+      { name: 'Ébano', hex: '#2C1810' }
     ],
     inputType: 'wall'
   },
