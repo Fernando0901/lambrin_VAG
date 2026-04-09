@@ -1,164 +1,257 @@
-import React, { useRef, useEffect } from 'react'
+import React, { useMemo } from 'react'
 import { motion } from 'framer-motion'
 
-export default function AreaVisualizer({ areas, pieceWidth, pieceLength, color, productName }) {
-  const canvasRef = useRef(null)
-
-  const totalArea = areas.reduce((sum, area) => sum + (area.width * area.length), 0)
+export default function AreaVisualizer({ areas, pieceWidth, pieceLength, color, productName, inputType = 'floor' }) {
+  const totalArea = areas.reduce((sum, a) => sum + (a.width * a.length), 0)
   const pieceArea = pieceWidth * pieceLength
   const piecesNeeded = Math.ceil(totalArea / pieceArea)
 
-  useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
+  const areaStats = useMemo(() => {
+    return areas.map(area => {
+      const [dimA, dimB] = inputType === 'wall'
+        ? [area.width, area.length]
+        : [area.length, area.width]
 
-    const ctx = canvas.getContext('2d')
-    const dpr = window.devicePixelRatio || 1
+      const piecesAlongA = Math.floor(dimA / pieceWidth)
+      const piecesAlongB = Math.floor(dimB / pieceLength)
+      const fullPiecesPerArea = piecesAlongA * piecesAlongB
 
-    const containerWidth = canvas.parentElement?.clientWidth || 400
-    const containerHeight = 300
+      const remainingA = dimA - piecesAlongA * pieceWidth
+      const remainingB = dimB - piecesAlongB * pieceLength
 
-    canvas.width = containerWidth * dpr
-    canvas.height = containerHeight * dpr
-    canvas.style.width = `${containerWidth}px`
-    canvas.style.height = `${containerHeight}px`
+      const partialAlongA = remainingA > 0.001 ? 1 : 0
+      const partialAlongB = remainingB > 0.001 ? 1 : 0
 
-    ctx.scale(dpr, dpr)
-    ctx.clearRect(0, 0, containerWidth, containerHeight)
+      const totalPiecesForArea = piecesAlongA * piecesAlongB
+        + (remainingA > 0.001 ? piecesAlongB : 0)
+        + (remainingB > 0.001 ? piecesAlongA : 0)
+        + (remainingA > 0.001 && remainingB > 0.001 ? 1 : 0)
 
-    const maxDimension = Math.max(
-      ...areas.map(a => Math.max(a.width, a.length)),
-      pieceWidth * 5,
-      pieceLength * 5
-    )
-
-    const padding = 40
-    const availableWidth = containerWidth - padding * 2
-    const availableHeight = containerHeight - padding * 2
-    const scale = Math.min(availableWidth / maxDimension, availableHeight / maxDimension) * 0.8
-
-    const centerX = containerWidth / 2
-    const centerY = containerHeight / 2
-
-    ctx.save()
-    ctx.translate(centerX, centerY)
-
-    const sortedAreas = [...areas].sort((a, b) => (b.width * b.length) - (a.width * a.length))
-    let offsetX = 0
-    let offsetY = 0
-    let rowMaxHeight = 0
-
-    const gap = 4
-
-    sortedAreas.forEach((area, areaIndex) => {
-      const areaWidthPx = area.width * scale
-      const areaHeightPx = area.length * scale
-
-      if (offsetX + areaWidthPx > availableWidth && offsetX > 0) {
-        offsetX = 0
-        offsetY += rowMaxHeight + gap
-        rowMaxHeight = 0
+      return {
+        area,
+        piecesAlongA,
+        piecesAlongB,
+        fullPieces: fullPiecesPerArea,
+        partialAlongA,
+        partialAlongB,
+        totalPiecesForArea,
+        remainingA,
+        remainingB,
+        cutA: remainingA > 0.001 ? remainingA : null,
+        cutB: remainingB > 0.001 ? remainingB : null,
+        pieceWidth,
+        pieceLength
       }
-
-      ctx.fillStyle = '#1F2937'
-      ctx.strokeStyle = '#374151'
-      ctx.lineWidth = 2
-      ctx.beginPath()
-      ctx.roundRect(offsetX, offsetY, areaWidthPx, areaHeightPx, 4)
-      ctx.fill()
-      ctx.stroke()
-
-      const piecesX = Math.ceil(areaWidthPx / (pieceWidth * scale))
-      const piecesY = Math.ceil(areaHeightPx / (pieceLength * scale))
-
-      for (let px = 0; px < piecesX; px++) {
-        for (let py = 0; py < piecesY; py++) {
-          const pieceX = offsetX + px * pieceWidth * scale
-          const pieceY = offsetY + py * pieceLength * scale
-          const pieceW = pieceWidth * scale
-          const pieceH = pieceLength * scale
-
-          const isLastX = px === piecesX - 1 && pieceX + pieceW > offsetX + areaWidthPx
-          const isLastY = py === piecesY - 1 && pieceY + pieceH > offsetY + areaHeightPx
-          const isPartial = isLastX || isLastY
-
-          if (pieceX + pieceW <= offsetX + areaWidthPx + 1 && pieceY + pieceH <= offsetY + areaHeightPx + 1) {
-            if (isPartial) {
-              ctx.fillStyle = `${color}CC`
-              ctx.strokeStyle = `${color}88`
-            } else {
-              ctx.fillStyle = color
-              ctx.strokeStyle = '#374151'
-            }
-            ctx.lineWidth = 1
-            ctx.beginPath()
-            ctx.rect(pieceX, pieceY, Math.min(pieceW, offsetX + areaWidthPx - pieceX), Math.min(pieceH, offsetY + areaHeightPx - pieceY))
-            ctx.fill()
-            ctx.stroke()
-
-            if (isPartial) {
-              ctx.strokeStyle = '#00000030'
-              ctx.lineWidth = 1
-              const size = Math.min(pieceW, pieceH) * 0.1
-              for (let i = 0; i < 5; i++) {
-                ctx.beginPath()
-                ctx.moveTo(pieceX + (pieceW / 5) * i, pieceY)
-                ctx.lineTo(pieceX, pieceY + (pieceH / 5) * i)
-                ctx.stroke()
-              }
-            }
-          }
-        }
-      }
-
-      ctx.fillStyle = '#9CA3AF'
-      ctx.font = '10px DM Sans'
-      ctx.textAlign = 'center'
-      ctx.fillText(`${area.width}×${area.length}m`, offsetX + areaWidthPx / 2, offsetY + areaHeightPx + 14)
-
-      offsetX += areaWidthPx + gap
-      rowMaxHeight = Math.max(rowMaxHeight, areaHeightPx)
     })
+  }, [areas, pieceWidth, pieceLength, inputType])
 
-    ctx.restore()
-
-    ctx.fillStyle = '#9CA3AF'
-    ctx.font = '11px DM Sans'
-    ctx.textAlign = 'left'
-    let infoY = containerHeight - 20
-    ctx.fillStyle = '#D97706'
-    ctx.fillText(`Total: ${totalArea.toFixed(2)} m²`, 20, infoY - 12)
-    ctx.fillStyle = '#9CA3AF'
-    ctx.fillText(`Piezas: ${piecesNeeded} | Dimensión pieza: ${pieceWidth}×${pieceLength}m`, 20, infoY)
-
-  }, [areas, pieceWidth, pieceLength, color, totalArea, piecesNeeded])
+  const totalFullPieces = areaStats.reduce((sum, s) => sum + s.fullPieces, 0)
+  const totalPartialPieces = piecesNeeded - totalFullPieces
 
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
-      className="bg-surface rounded-xl border border-border-subtle p-4"
+      className="bg-surface rounded-xl border border-border-subtle overflow-hidden"
     >
-      <div className="flex items-center justify-between mb-3">
+      <div className="p-4 border-b border-border-subtle flex items-center justify-between flex-wrap gap-3">
         <h3 className="font-heading font-semibold text-text-primary uppercase tracking-wide">
           Distribución de Piezas
         </h3>
         <div className="flex items-center gap-2">
-          <span className="w-4 h-4 rounded" style={{ backgroundColor: color }} />
+          <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: color }} />
           <span className="text-xs text-text-secondary">{productName}</span>
+          <span className="text-xs text-text-secondary ml-2">
+            {pieceWidth} × {pieceLength} m
+          </span>
         </div>
       </div>
-      <div className="relative bg-bg-dark rounded-lg overflow-hidden" style={{ minHeight: 300 }}>
-        <canvas ref={canvasRef} className="w-full" />
+
+      <div className="p-4 space-y-6">
+        {areaStats.map((stat, idx) => (
+          <div key={idx} className="border border-border-subtle rounded-lg overflow-hidden">
+            <div className="bg-bg-dark px-4 py-2 flex items-center justify-between">
+              <span className="text-sm font-medium text-text-primary">
+                {inputType === 'wall' ? 'Pared' : 'Área'} {idx + 1}
+              </span>
+              <span className="text-xs text-text-secondary">
+                {inputType === 'wall'
+                  ? `${stat.area.width} m ancho × ${stat.area.length} m alto`
+                  : `${stat.area.length} m largo × ${stat.area.width} m ancho`}
+                {' = '}
+                <span className="text-accent">{(stat.area.width * stat.area.length).toFixed(2)} m²</span>
+              </span>
+            </div>
+
+            <div className="p-4">
+              <div className="flex gap-6">
+                <div className="flex-1">
+                  <svg
+                    viewBox={`0 0 ${stat.piecesAlongA * 50 + 60} ${stat.piecesAlongB * 50 + 60}`}
+                    className="w-full"
+                    style={{ maxHeight: 220 }}
+                  >
+                    <rect x="5" y="5" width={stat.piecesAlongA * 50} height={stat.piecesAlongB * 50}
+                      fill={`${color}25`} stroke={color} strokeWidth="2" />
+
+                    {Array.from({ length: stat.piecesAlongA }).map((_, px) =>
+                      Array.from({ length: stat.piecesAlongB }).map((_, py) => (
+                        <rect
+                          key={`${px}-${py}`}
+                          x={10 + px * 50}
+                          y={10 + py * 50}
+                          width={45}
+                          height={45}
+                          fill={color}
+                          stroke="#374151"
+                          strokeWidth="1"
+                          rx="2"
+                        />
+                      ))
+                    )}
+
+                    {stat.partialAlongA > 0 && Array.from({ length: stat.piecesAlongB }).map((_, py) => (
+                      <rect
+                        key={`partial-a-${py}`}
+                        x={10 + stat.piecesAlongA * 50}
+                        y={10 + py * 50}
+                        width={45}
+                        height={45}
+                        fill={`${color}AA`}
+                        stroke="#374151"
+                        strokeWidth="1"
+                        strokeDasharray="4 2"
+                        rx="2"
+                      />
+                    ))}
+
+                    {stat.partialAlongB > 0 && Array.from({ length: stat.piecesAlongA }).map((_, px) => (
+                      <rect
+                        key={`partial-b-${px}`}
+                        x={10 + px * 50}
+                        y={10 + stat.piecesAlongB * 50}
+                        width={45}
+                        height={45}
+                        fill={`${color}AA`}
+                        stroke="#374151"
+                        strokeWidth="1"
+                        strokeDasharray="4 2"
+                        rx="2"
+                      />
+                    ))}
+
+                    {stat.partialAlongA > 0 && stat.partialAlongB > 0 && (
+                      <rect
+                        x={10 + stat.piecesAlongA * 50}
+                        y={10 + stat.piecesAlongB * 50}
+                        width={45}
+                        height={45}
+                        fill={`${color}77`}
+                        stroke="#374151"
+                        strokeWidth="1"
+                        strokeDasharray="4 2"
+                        rx="2"
+                      />
+                    )}
+
+                    <line x1="5" y1="5" x2={5 + stat.piecesAlongA * 50} y2="5" stroke="#9CA3AF" strokeWidth="1" />
+                    <line x1="5" y1="5" x2="5" y2={5 + stat.piecesAlongB * 50} stroke="#9CA3AF" strokeWidth="1" />
+
+                    <text x={5 + (stat.piecesAlongA * 50) / 2} y="0" textAnchor="middle" fontSize="8" fill="#9CA3AF">
+                      {stat.piecesAlongA} pieza{stat.piecesAlongA !== 1 ? 's' : ''} × {pieceWidth}m
+                    </text>
+                    <text x="0" y={5 + (stat.piecesAlongB * 50) / 2} textAnchor="middle" fontSize="8" fill="#9CA3AF"
+                      transform={`rotate(-90, 0, ${5 + (stat.piecesAlongB * 50) / 2})`}>
+                      {stat.piecesAlongB} pieza{stat.piecesAlongB !== 1 ? 's' : ''} × {pieceLength}m
+                    </text>
+                  </svg>
+                </div>
+
+                <div className="w-40 flex flex-col justify-center space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-text-secondary">Piezas completas:</span>
+                    <span className="text-text-primary font-medium">{stat.fullPieces}</span>
+                  </div>
+                  {stat.partialAlongA > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-text-secondary">Corte en A:</span>
+                      <span className="text-amber-400 font-medium">{stat.cutA?.toFixed(3)} m</span>
+                    </div>
+                  )}
+                  {stat.partialAlongB > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-text-secondary">Corte en B:</span>
+                      <span className="text-amber-400 font-medium">{stat.cutB?.toFixed(3)} m</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between border-t border-border-subtle pt-2">
+                    <span className="text-text-secondary">Subtotal:</span>
+                    <span className="text-accent font-bold">{stat.totalPiecesForArea} pieza{stat.totalPiecesForArea !== 1 ? 's' : ''}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
-      <div className="mt-3 flex items-center gap-4 text-xs text-text-secondary">
+
+      <div className="px-4 pb-4">
+        <div className="bg-bg-dark rounded-lg p-4 border border-border-subtle">
+          <h4 className="text-sm font-heading font-semibold text-text-primary uppercase mb-3">
+            Resumen Total
+          </h4>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="text-center">
+              <p className="text-2xl font-heading font-bold text-accent">{totalArea.toFixed(2)}</p>
+              <p className="text-xs text-text-secondary mt-1">m² área total</p>
+            </div>
+            <div className="text-center">
+              <p className="text-2xl font-heading font-bold text-green-400">{totalFullPieces}</p>
+              <p className="text-xs text-text-secondary mt-1">piezas completas</p>
+            </div>
+            <div className="text-center">
+              <p className="text-2xl font-heading font-bold text-amber-400">{totalPartialPieces}</p>
+              <p className="text-xs text-text-secondary mt-1">piezas con corte</p>
+            </div>
+            <div className="text-center">
+              <p className="text-2xl font-heading font-bold text-text-primary">{piecesNeeded}</p>
+              <p className="text-xs text-text-secondary mt-1">total piezas</p>
+            </div>
+          </div>
+
+          {areaStats.some(s => s.partialAlongA > 0 || s.partialAlongB > 0) && (
+            <div className="mt-4 pt-4 border-t border-border-subtle">
+              <h5 className="text-xs font-heading font-semibold text-text-secondary uppercase mb-2">
+                Instrucciones de Corte
+              </h5>
+              <ul className="space-y-1">
+                {areaStats.map((stat, idx) => {
+                  const cuts = []
+                  if (stat.partialAlongA > 0) cuts.push(`Cortar ${stat.piecesAlongB} pieza${stat.piecesAlongB !== 1 ? 's' : ''} a ${stat.cutA?.toFixed(3)} m (ancho)`)
+                  if (stat.partialAlongB > 0) cuts.push(`Cortar ${stat.piecesAlongA} pieza${stat.piecesAlongA !== 1 ? 's' : ''} a ${stat.cutB?.toFixed(3)} m (largo)`)
+                  if (stat.partialAlongA > 0 && stat.partialAlongB > 0) cuts.push(`1 esquina requiere corte ${stat.cutA?.toFixed(3)} m × ${stat.cutB?.toFixed(3)} m`)
+                  if (cuts.length === 0) return null
+                  return (
+                    <li key={idx} className="text-xs text-text-secondary">
+                      <span className="text-accent font-medium">{inputType === 'wall' ? 'Pared' : 'Área'} {idx + 1}:</span>{' '}
+                      {cuts.join(' | ')}
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="px-4 pb-4 flex items-center gap-4 text-xs text-text-secondary">
         <div className="flex items-center gap-1">
           <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: color }} />
-          <span>Pieza completa</span>
+          <span>Completa</span>
         </div>
         <div className="flex items-center gap-1">
-          <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: `${color}CC` }} />
-          <span>Con corte</span>
+          <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: `${color}AA` }} />
+          <span>Con corte (punteado)</span>
         </div>
       </div>
     </motion.div>

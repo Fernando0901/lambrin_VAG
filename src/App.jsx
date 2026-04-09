@@ -174,6 +174,7 @@ function App() {
                     pieceLength={calculationBoth.venta.pieceLength}
                     color={selectedColor?.hex || '#D97706'}
                     productName={currentProduct?.name}
+                    inputType={currentProduct?.inputType}
                   />
                 </>
               )}
