@@ -91,10 +91,10 @@ export const products = {
     dimensions: { width: 1.22, length: 2.44 },
     piecesPerBox: 1,
     precios: {
-      costo: { pieza: null, caja: null },
-      venta: { pieza: null, caja: null }
+      costo: { pieza: 396.55, caja: 396.55 },
+      venta: { pieza: 396.55, caja: 396.55 }
     },
-    pricePerColor: true,
+    pricePerColor: false,
     colorPrices: {
       '396.55': ['ÁGATA', 'GRAFITO', 'ÓNIX', 'PERLA', 'ZAFIRO'],
       '456.90': ['AURORA', 'BLACK GOLD', 'PERLA GOLD', 'NEBBIA', 'SIENNA', 'OBSIDIA']

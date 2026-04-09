@@ -16,9 +16,17 @@ export const calculateMaterial = (productId, areas, color, prices, priceMode = '
   let pricePieza, priceCaja
   if (product.pricePerColor && color) {
     const colorName = color.name
-    const priceKey = Object.keys(product.colorPrices).find(k => product.colorPrices[k].includes(colorName))
-    pricePieza = priceKey ? parseFloat(priceKey) : 0
-    priceCaja = pricePieza
+    const basePrice = currentPrices.precios?.[modo]?.pieza
+      ? parseFloat(currentPrices.precios[modo].pieza)
+      : null
+    if (basePrice !== null) {
+      pricePieza = basePrice
+      priceCaja = basePrice
+    } else {
+      const priceKey = Object.keys(product.colorPrices).find(k => product.colorPrices[k].includes(colorName))
+      pricePieza = priceKey ? parseFloat(priceKey) : 0
+      priceCaja = pricePieza
+    }
   } else {
     pricePieza = currentPrices.precios?.[modo]?.pieza ?? product.precios.venta.pieza
     priceCaja = currentPrices.precios?.[modo]?.caja ?? product.precios.venta.caja
