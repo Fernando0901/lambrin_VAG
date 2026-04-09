@@ -90,15 +90,21 @@ export const products = {
     name: 'Placa Mármol PVC',
     dimensions: { width: 1.22, length: 2.44 },
     piecesPerBox: 1,
-    precios: {
-      costo: { pieza: 396.55, caja: 396.55 },
-      venta: { pieza: 396.55, caja: 396.55 }
-    },
-    pricePerColor: false,
-    colorPrices: {
-      '396.55': ['ÁGATA', 'GRAFITO', 'ÓNIX', 'PERLA', 'ZAFIRO'],
-      '456.90': ['AURORA', 'BLACK GOLD', 'PERLA GOLD', 'NEBBIA', 'SIENNA', 'OBSIDIA']
-    },
+    precios: buildPrecios(396.55, 396.55),
+    pricePerColorGroups: [
+      {
+        id: 'grupo_a',
+        label: 'Grupo A ($396.55)',
+        colors: ['ÁGATA', 'GRAFITO', 'ÓNIX', 'PERLA', 'ZAFIRO'],
+        precios: buildPrecios(396.55, 396.55)
+      },
+      {
+        id: 'grupo_b',
+        label: 'Grupo B ($456.90)',
+        colors: ['AURORA', 'BLACK GOLD', 'PERLA GOLD', 'NEBBIA', 'SIENNA', 'OBSIDIA'],
+        precios: buildPrecios(456.90, 456.90)
+      }
+    ],
     accesorios: {
       perfilUnion: {
         nombre: 'Perfil Union 2.45 m',
@@ -143,7 +149,10 @@ export const getDefaultPrices = () => {
   for (const [pid, product] of Object.entries(products)) {
     result[pid] = {
       precios: JSON.parse(JSON.stringify(product.precios)),
-      accesorios: {}
+      accesorios: {},
+      pricePerColorGroups: product.pricePerColorGroups
+        ? JSON.parse(JSON.stringify(product.pricePerColorGroups))
+        : null
     }
     for (const [aid, acc] of Object.entries(product.accesorios || {})) {
       result[pid].accesorios[aid] = {
@@ -152,4 +161,10 @@ export const getDefaultPrices = () => {
     }
   }
   return result
+}
+
+export const getColorGroup = (productId, colorName) => {
+  const product = products[productId]
+  if (!product.pricePerColorGroups) return null
+  return product.pricePerColorGroups.find(g => g.colors.includes(colorName)) || null
 }

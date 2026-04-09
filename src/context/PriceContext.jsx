@@ -41,7 +41,7 @@ export function PriceProvider({ children }) {
     setTimeout(() => setShowToast(false), 3000)
   }, [])
 
-  const updatePrice = useCallback((productId, accessoryId, modo, tipo, value) => {
+  const updatePrice = useCallback((productId, accessoryId, modo, tipo, value, groupId = null) => {
     const parsed = parseFloat(value)
     if (isNaN(parsed) || parsed < 0) return
 
@@ -57,19 +57,24 @@ export function PriceProvider({ children }) {
           next[productId].accesorios[accessoryId].precios[modo].pieza =
             Number.parseFloat((parsed / acc.piezasPorCaja).toFixed(2))
         }
+      } else if (groupId) {
+        const groupIdx = next[productId].pricePerColorGroups.findIndex(g => g.id === groupId)
+        if (groupIdx !== -1) {
+          next[productId].pricePerColorGroups[groupIdx].precios[modo][tipo] = parsed
+          if (tipo === 'pieza') {
+            next[productId].pricePerColorGroups[groupIdx].precios[modo].caja = parsed
+          } else {
+            next[productId].pricePerColorGroups[groupIdx].precios[modo].pieza = parsed
+          }
+        }
       } else {
         const product = products[productId]
         next[productId].precios[modo][tipo] = parsed
-        if (product.pricePerColor) {
-          if (tipo === 'pieza') next[productId].precios[modo].caja = parsed
-          else next[productId].precios[modo].pieza = parsed
+        const ppb = product.piecesPerBox
+        if (tipo === 'pieza') {
+          next[productId].precios[modo].caja = Number.parseFloat((parsed * ppb).toFixed(2))
         } else {
-          const ppb = product.piecesPerBox
-          if (tipo === 'pieza') {
-            next[productId].precios[modo].caja = Number.parseFloat((parsed * ppb).toFixed(2))
-          } else {
-            next[productId].precios[modo].pieza = Number.parseFloat((parsed / ppb).toFixed(2))
-          }
+          next[productId].precios[modo].pieza = Number.parseFloat((parsed / ppb).toFixed(2))
         }
       }
       return next

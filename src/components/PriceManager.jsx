@@ -4,8 +4,6 @@ import { usePrices } from '../context/PriceContext'
 import { products } from '../data/products'
 import { formatCurrency } from '../data/products'
 
-const EDITED_SENTINEL = '__edited__'
-
 export default function PriceManager({ isOpen, onClose }) {
   const { priceMode, setPriceMode, prices, updatePrice, resetPrices, savePrices, hasUnsavedChanges } = usePrices()
   const [editedFields, setEditedFields] = useState({})
@@ -14,82 +12,126 @@ export default function PriceManager({ isOpen, onClose }) {
     setPriceMode(mode)
   }
 
-  const handlePriceChange = (productId, accessoryId, modo, tipo, value) => {
-    updatePrice(productId, accessoryId, modo, tipo, value)
+  const handlePriceChange = (productId, accessoryId, modo, tipo, value, groupId = null) => {
+    updatePrice(productId, accessoryId, modo, tipo, value, groupId)
     setEditedFields(prev => ({
       ...prev,
-      [`${productId}|${accessoryId || 'main'}|${modo}|${tipo}`]: true
+      [`${productId}|${accessoryId || 'main'}|${modo}|${tipo}|${groupId || ''}`]: true
     }))
   }
 
-  const getEditedStatus = (productId, accessoryId, modo, tipo) => {
-    return editedFields[`${productId}|${accessoryId || 'main'}|${modo}|${tipo}`] === true
+  const getEditedStatus = (productId, accessoryId, modo, tipo, groupId = null) => {
+    return editedFields[`${productId}|${accessoryId || 'main'}|${modo}|${tipo}|${groupId || ''}`] === true
   }
 
-  const renderPriceInputs = (productId, accessoryId, acc, modo) => {
-    const ppb = acc?.piezasPorCaja || products[productId].piecesPerBox
-    const currentPieza = accessoryId
-      ? prices[productId]?.accesorios[accessoryId]?.precios[modo]?.pieza
-      : prices[productId]?.precios[modo]?.pieza
-    const currentCaja = accessoryId
-      ? prices[productId]?.accesorios[accessoryId]?.precios[modo]?.caja
-      : prices[productId]?.precios[modo]?.caja
-
-    return (
-      <tr key={`${productId}-${accessoryId}-${modo}`} className="border-t border-border-subtle/30">
-        <td className="p-3 text-sm text-text-primary">
-          {accessoryId
-            ? (acc.nombre || products[productId].accesorios[accessoryId]?.nombre)
-            : products[productId].name}
-        </td>
-        <td className="p-2">
-          <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-sm">$</span>
-            <input
-              type="number"
-              step="0.01"
-              min="0"
-              value={currentPieza || ''}
-              onChange={(e) => handlePriceChange(productId, accessoryId, modo, 'pieza', e.target.value)}
-              className={`w-full pl-7 pr-2 py-1.5 bg-bg-dark border rounded text-text-primary text-sm text-right focus:outline-none focus:ring-1 ${
-                getEditedStatus(productId, accessoryId, modo, 'pieza')
-                  ? 'border-yellow-500 focus:border-yellow-500 focus:ring-yellow-500/30'
-                  : 'border-border-subtle focus:border-accent focus:ring-accent/30'
-              }`}
-            />
-          </div>
-        </td>
-        <td className="p-2">
-          <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-sm">$</span>
-            <input
-              type="number"
-              step="0.01"
-              min="0"
-              value={currentCaja || ''}
-              disabled={!acc?.piezasPorCaja && !products[productId].piecesPerBox}
-              onChange={(e) => handlePriceChange(productId, accessoryId, modo, 'caja', e.target.value)}
-              className={`w-full pl-7 pr-2 py-1.5 bg-bg-dark border rounded text-text-primary text-sm text-right focus:outline-none focus:ring-1 disabled:opacity-40 disabled:cursor-not-allowed ${
-                getEditedStatus(productId, accessoryId, modo, 'caja')
-                  ? 'border-yellow-500 focus:border-yellow-500 focus:ring-yellow-500/30'
-                  : 'border-border-subtle focus:border-accent focus:ring-accent/30'
-              }`}
-            />
-          </div>
-        </td>
-      </tr>
-    )
-  }
+  const renderInput = (productId, accessoryId, modo, tipo, value, isDisabled, groupId = null) => (
+    <div className="relative">
+      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-sm">$</span>
+      <input
+        type="number"
+        step="0.01"
+        min="0"
+        value={value ?? ''}
+        disabled={isDisabled}
+        onChange={(e) => handlePriceChange(productId, accessoryId, modo, tipo, e.target.value, groupId)}
+        className={`w-full pl-7 pr-2 py-1.5 bg-bg-dark border rounded text-text-primary text-sm text-right focus:outline-none focus:ring-1 disabled:opacity-40 disabled:cursor-not-allowed ${
+          getEditedStatus(productId, accessoryId, modo, tipo, groupId)
+            ? 'border-yellow-500 focus:border-yellow-500 focus:ring-yellow-500/30'
+            : 'border-border-subtle focus:border-accent focus:ring-accent/30'
+        }`}
+      />
+    </div>
+  )
 
   const rowsCosto = []
   const rowsVenta = []
 
   for (const [pid, product] of Object.entries(products)) {
-    rowsCosto.push(renderPriceInputs(pid, null, null, 'costo'))
-    rowsVenta.push(renderPriceInputs(pid, null, null, 'venta'))
-    for (const [aid, acc] of Object.entries(product.accesorios || {})) {
-      rowsCosto.push(renderPriceInputs(pid, aid, acc, 'costo'))
-      rowsVenta.push(renderPriceInputs(pid, aid, acc, 'venta'))
+    if (product.pricePerColorGroups) {
+      for (const group of product.pricePerColorGroups) {
+        const currentPrices = prices[pid]?.pricePerColorGroups?.find(g => g.id === group.id)
+        const effectivePrices = currentPrices ? currentPrices.precios : group.precios
+
+        rowsCosto.push(
+          <tr key={`${pid}-${group.id}-costo`} className="border-t border-border-subtle/30">
+            <td className="p-3 text-sm text-text-primary">
+              <div className="flex flex-col">
+                <span>{product.name} — {group.label}</span>
+                <span className="text-xs text-text-secondary mt-0.5">
+                  {group.colors.join(', ')}
+                </span>
+              </div>
+            </td>
+            <td className="p-2">
+              {renderInput(pid, null, 'costo', 'pieza', effectivePrices?.costo?.pieza, false, group.id)}
+            </td>
+            <td className="p-2">
+              {renderInput(pid, null, 'costo', 'caja', effectivePrices?.costo?.caja, true, group.id)}
+            </td>
+          </tr>
+        )
+        rowsVenta.push(
+          <tr key={`${pid}-${group.id}-venta`} className="border-t border-border-subtle/30">
+            <td className="p-3 text-sm text-text-primary">
+              <div className="flex flex-col">
+                <span>{product.name} — {group.label}</span>
+                <span className="text-xs text-text-secondary mt-0.5">
+                  {group.colors.join(', ')}
+                </span>
+              </div>
+            </td>
+            <td className="p-2">
+              {renderInput(pid, null, 'venta', 'pieza', effectivePrices?.venta?.pieza, false, group.id)}
+            </td>
+            <td className="p-2">
+              {renderInput(pid, null, 'venta', 'caja', effectivePrices?.venta?.caja, true, group.id)}
+            </td>
+          </tr>
+        )
+      }
+    } else {
+      const currentPiezaCosto = prices[pid]?.precios?.costo?.pieza ?? product.precios.costo.pieza
+      const currentPiezaVenta = prices[pid]?.precios?.venta?.pieza ?? product.precios.venta.pieza
+      const currentCajaCosto = prices[pid]?.precios?.costo?.caja ?? product.precios.costo.caja
+      const currentCajaVenta = prices[pid]?.precios?.venta?.caja ?? product.precios.venta.caja
+
+      rowsCosto.push(
+        <tr key={`${pid}-costo`} className="border-t border-border-subtle/30">
+          <td className="p-3 text-sm text-text-primary">{product.name}</td>
+          <td className="p-2">{renderInput(pid, null, 'costo', 'pieza', currentPiezaCosto, false)}</td>
+          <td className="p-2">{renderInput(pid, null, 'costo', 'caja', currentCajaCosto, false)}</td>
+        </tr>
+      )
+      rowsVenta.push(
+        <tr key={`${pid}-venta`} className="border-t border-border-subtle/30">
+          <td className="p-3 text-sm text-text-primary">{product.name}</td>
+          <td className="p-2">{renderInput(pid, null, 'venta', 'pieza', currentPiezaVenta, false)}</td>
+          <td className="p-2">{renderInput(pid, null, 'venta', 'caja', currentCajaVenta, false)}</td>
+        </tr>
+      )
+
+      for (const [aid, acc] of Object.entries(product.accesorios || {})) {
+        const accPiezaCosto = prices[pid]?.accesorios?.[aid]?.precios?.costo?.pieza ?? acc.precios.costo.pieza
+        const accPiezaVenta = prices[pid]?.accesorios?.[aid]?.precios?.venta?.pieza ?? acc.precios.venta.pieza
+        const accCajaCosto = prices[pid]?.accesorios?.[aid]?.precios?.costo?.caja ?? acc.precios.costo.caja
+        const accCajaVenta = prices[pid]?.accesorios?.[aid]?.precios?.venta?.caja ?? acc.precios.venta.caja
+        const hasBox = acc.piezasPorCaja
+
+        rowsCosto.push(
+          <tr key={`${pid}-${aid}-costo`} className="border-t border-border-subtle/30">
+            <td className="p-3 text-sm text-text-primary">{acc.nombre}</td>
+            <td className="p-2">{renderInput(pid, aid, 'costo', 'pieza', accPiezaCosto, false)}</td>
+            <td className="p-2">{renderInput(pid, aid, 'costo', 'caja', accCajaCosto, !hasBox)}</td>
+          </tr>
+        )
+        rowsVenta.push(
+          <tr key={`${pid}-${aid}-venta`} className="border-t border-border-subtle/30">
+            <td className="p-3 text-sm text-text-primary">{acc.nombre}</td>
+            <td className="p-2">{renderInput(pid, aid, 'venta', 'pieza', accPiezaVenta, false)}</td>
+            <td className="p-2">{renderInput(pid, aid, 'venta', 'caja', accCajaVenta, !hasBox)}</td>
+          </tr>
+        )
+      }
     }
   }
 
@@ -154,12 +196,15 @@ export default function PriceManager({ isOpen, onClose }) {
 
             <div className="flex-1 overflow-y-auto p-5 space-y-6">
               <div>
+                <h3 className="text-xs uppercase tracking-wider text-text-secondary mb-2 font-medium">
+                  — Precio Costo —
+                </h3>
                 <table className="w-full">
                   <thead>
                     <tr className="bg-bg-dark text-text-secondary text-xs uppercase tracking-wider">
                       <th className="text-left p-3 font-medium rounded-tl-lg">Material</th>
-                      <th className="text-right p-3 font-medium">Pieza (Costo)</th>
-                      <th className="text-right p-3 font-medium rounded-tr-lg">Caja (Costo)</th>
+                      <th className="text-right p-3 font-medium">Pieza</th>
+                      <th className="text-right p-3 font-medium rounded-tr-lg">Caja</th>
                     </tr>
                   </thead>
                   <tbody>{rowsCosto}</tbody>
@@ -167,12 +212,15 @@ export default function PriceManager({ isOpen, onClose }) {
               </div>
 
               <div>
+                <h3 className="text-xs uppercase tracking-wider text-text-secondary mb-2 font-medium">
+                  — Precio Venta —
+                </h3>
                 <table className="w-full">
                   <thead>
                     <tr className="bg-bg-dark text-text-secondary text-xs uppercase tracking-wider">
                       <th className="text-left p-3 font-medium rounded-tl-lg">Material</th>
-                      <th className="text-right p-3 font-medium">Pieza (Venta)</th>
-                      <th className="text-right p-3 font-medium">Caja (Venta)</th>
+                      <th className="text-right p-3 font-medium">Pieza</th>
+                      <th className="text-right p-3 font-medium rounded-tr-lg">Caja</th>
                     </tr>
                   </thead>
                   <tbody>{rowsVenta}</tbody>
