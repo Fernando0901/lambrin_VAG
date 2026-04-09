@@ -13,8 +13,16 @@ export const calculateMaterial = (productId, areas, color, prices, priceMode = '
   const piecesNeeded = Math.ceil(totalArea / pieceArea)
   const boxesNeeded = Math.ceil(piecesNeeded / product.piecesPerBox)
 
-  const pricePieza = currentPrices.precios?.[modo]?.pieza ?? product.precios.venta.pieza
-  const priceCaja = currentPrices.precios?.[modo]?.caja ?? product.precios.venta.caja
+  let pricePieza, priceCaja
+  if (product.pricePerColor && color) {
+    const colorName = color.name
+    const priceKey = Object.keys(product.colorPrices).find(k => product.colorPrices[k].includes(colorName))
+    pricePieza = priceKey ? parseFloat(priceKey) : 0
+    priceCaja = pricePieza
+  } else {
+    pricePieza = currentPrices.precios?.[modo]?.pieza ?? product.precios.venta.pieza
+    priceCaja = currentPrices.precios?.[modo]?.caja ?? product.precios.venta.caja
+  }
 
   let accessories = []
   let perimeterTotal = 0
@@ -80,6 +88,19 @@ export const calculateMaterial = (productId, areas, color, prices, priceMode = '
         unitPriceWithIVA: perfilPricePieza * (1 + IVA),
         boxPriceWithIVA: perfilPriceCaja * (1 + IVA),
         piecesPerBox: product.accesorios.perfil.piezasPorCaja
+      }
+    ]
+  } else if (productId === 'placa') {
+    lengthTotal = areas.reduce((sum, area) => sum + area.length, 0)
+    const perfilUnionNeeded = Math.ceil(lengthTotal / product.accesorios.perfilUnion.largo)
+    const perfilPrice = currentPrices.accesorios?.perfilUnion?.precios?.[modo]?.pieza ?? product.accesorios.perfilUnion.precios.venta.pieza
+
+    accessories = [
+      {
+        name: product.accesorios.perfilUnion.nombre,
+        quantity: perfilUnionNeeded,
+        unitPrice: perfilPrice,
+        unitPriceWithIVA: perfilPrice * (1 + IVA)
       }
     ]
   }

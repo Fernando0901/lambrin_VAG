@@ -52,18 +52,24 @@ export function PriceProvider({ children }) {
         const acc = products[productId].accesorios[accessoryId]
         if (acc.piezasPorCaja && tipo === 'pieza') {
           next[productId].accesorios[accessoryId].precios[modo].caja =
-            parseFloat((parsed * acc.piezasPorCaja).toFixed(2))
+            Number.parseFloat((parsed * acc.piezasPorCaja).toFixed(2))
         } else if (acc.piezasPorCaja && tipo === 'caja') {
           next[productId].accesorios[accessoryId].precios[modo].pieza =
-            parseFloat((parsed / acc.piezasPorCaja).toFixed(2))
+            Number.parseFloat((parsed / acc.piezasPorCaja).toFixed(2))
         }
       } else {
+        const product = products[productId]
         next[productId].precios[modo][tipo] = parsed
-        const ppb = products[productId].piecesPerBox
-        if (tipo === 'pieza') {
-          next[productId].precios[modo].caja = parseFloat((parsed * ppb).toFixed(2))
+        if (product.pricePerColor) {
+          if (tipo === 'pieza') next[productId].precios[modo].caja = parsed
+          else next[productId].precios[modo].pieza = parsed
         } else {
-          next[productId].precios[modo].pieza = parseFloat((parsed / ppb).toFixed(2))
+          const ppb = product.piecesPerBox
+          if (tipo === 'pieza') {
+            next[productId].precios[modo].caja = Number.parseFloat((parsed * ppb).toFixed(2))
+          } else {
+            next[productId].precios[modo].pieza = Number.parseFloat((parsed / ppb).toFixed(2))
+          }
         }
       }
       return next
