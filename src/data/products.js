@@ -169,3 +169,18 @@ export const getColorGroup = (productId, colorName) => {
   if (!product.pricePerColorGroups) return null
   return product.pricePerColorGroups.find(g => g.colors.includes(colorName)) || null
 }
+
+export const getAllProducts = (customProducts = []) => {
+  const result = {}
+  for (const [pid, product] of Object.entries(products)) {
+    result[pid] = product
+  }
+  for (const cp of customProducts) {
+    result[cp.id] = cp
+  }
+  return result
+}
+
+export const getProduct = (productId, customProducts = []) => {
+  return products[productId] || customProducts.find(p => p.id === productId) || null
+}

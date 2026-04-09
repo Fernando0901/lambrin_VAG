@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { products, getDefaultPrices, STORAGE_KEY } from '../data/products'
+import { syncToCloud, fetchFromCloud, isSyncEnabled, setSyncEnabled } from '../utils/syncService'
 
 const PriceContext = createContext(null)
 
@@ -16,30 +17,52 @@ export function PriceProvider({ children }) {
     }
     return getDefaultPrices()
   })
+  const [customProducts, setCustomProducts] = useState(() => {
+    try {
+      const saved = localStorage.getItem('vag_custom_products')
+      if (saved) return JSON.parse(saved)
+    } catch {}
+    return []
+  })
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
-  const [loadedFromStorage, setLoadedFromStorage] = useState(false)
   const [showToast, setShowToast] = useState(false)
   const [toastMessage, setToastMessage] = useState('')
-
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY)
-      if (saved) {
-        setLoadedFromStorage(true)
-        setShowToast(true)
-        setToastMessage('Precios cargados desde sesión anterior')
-        setTimeout(() => setShowToast(false), 4000)
-      }
-    } catch (e) {
-      // ignore
-    }
-  }, [])
+  const [syncStatus, setSyncStatus] = useState('idle')
+  const [lastSynced, setLastSynced] = useState(null)
 
   const showToastMessage = useCallback((msg) => {
     setToastMessage(msg)
     setShowToast(true)
     setTimeout(() => setShowToast(false), 3000)
   }, [])
+
+  const loadFromCloud = useCallback(async () => {
+    setSyncStatus('loading')
+    const result = await fetchFromCloud()
+    if (result.success && result.data) {
+      const { precios, customProducts: cp } = result.data
+      if (precios) {
+        setPrices(precios)
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(precios))
+      }
+      if (cp) {
+        setCustomProducts(cp)
+        localStorage.setItem('vag_custom_products', JSON.stringify(cp))
+      }
+      setLastSynced(new Date())
+      setSyncStatus('synced')
+      showToastMessage('Precios cargados desde la nube')
+    } else {
+      setSyncStatus('error')
+      showToastMessage('Error al conectar con la nube')
+    }
+  }, [showToastMessage])
+
+  useEffect(() => {
+    if (isSyncEnabled()) {
+      loadFromCloud()
+    }
+  }, [loadFromCloud])
 
   const updatePrice = useCallback((productId, accessoryId, modo, tipo, value, groupId = null) => {
     const parsed = parseFloat(value)
@@ -49,16 +72,16 @@ export function PriceProvider({ children }) {
       const next = JSON.parse(JSON.stringify(prev))
       if (accessoryId) {
         next[productId].accesorios[accessoryId].precios[modo][tipo] = parsed
-        const acc = products[productId].accesorios[accessoryId]
-        if (acc.piezasPorCaja && tipo === 'pieza') {
+        const acc = products[productId]?.accesorios?.[accessoryId]
+        if (acc?.piezasPorCaja && tipo === 'pieza') {
           next[productId].accesorios[accessoryId].precios[modo].caja =
             Number.parseFloat((parsed * acc.piezasPorCaja).toFixed(2))
-        } else if (acc.piezasPorCaja && tipo === 'caja') {
+        } else if (acc?.piezasPorCaja && tipo === 'caja') {
           next[productId].accesorios[accessoryId].precios[modo].pieza =
             Number.parseFloat((parsed / acc.piezasPorCaja).toFixed(2))
         }
       } else if (groupId) {
-        const groupIdx = next[productId].pricePerColorGroups.findIndex(g => g.id === groupId)
+        const groupIdx = next[productId]?.pricePerColorGroups?.findIndex(g => g.id === groupId)
         if (groupIdx !== -1) {
           next[productId].pricePerColorGroups[groupIdx].precios[modo][tipo] = parsed
           if (tipo === 'pieza') {
@@ -70,7 +93,7 @@ export function PriceProvider({ children }) {
       } else {
         const product = products[productId]
         next[productId].precios[modo][tipo] = parsed
-        const ppb = product.piecesPerBox
+        const ppb = product?.piecesPerBox || 1
         if (tipo === 'pieza') {
           next[productId].precios[modo].caja = Number.parseFloat((parsed * ppb).toFixed(2))
         } else {
@@ -82,45 +105,87 @@ export function PriceProvider({ children }) {
     setHasUnsavedChanges(true)
   }, [])
 
-  const markFieldEdited = useCallback((productId, accessoryId, modo, tipo) => {
-    // Visual feedback is handled in PriceManager state
-  }, [])
-
   const resetPrices = useCallback(() => {
     setPrices(getDefaultPrices())
     setHasUnsavedChanges(false)
     showToastMessage('Precios restablecidos')
   }, [showToastMessage])
 
-  const savePrices = useCallback(() => {
+  const savePrices = useCallback(async () => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(prices))
+      localStorage.setItem('vag_custom_products', JSON.stringify(customProducts))
       setHasUnsavedChanges(false)
-      showToastMessage('Cambios guardados')
+      showToastMessage('Cambios guardados localmente')
+
+      if (isSyncEnabled()) {
+        setSyncStatus('saving')
+        const result = await syncToCloud({ precios: prices, customProducts, timestamp: Date.now() })
+        if (result.success) {
+          setLastSynced(new Date())
+          setSyncStatus('synced')
+        } else {
+          setSyncStatus('error')
+        }
+      }
     } catch (e) {
       showToastMessage('Error al guardar')
     }
-  }, [prices, showToastMessage])
+  }, [prices, customProducts, showToastMessage])
 
-  const getPrice = useCallback((productId, accessoryId, modo, tipo) => {
-    if (accessoryId) {
-      return prices[productId]?.accesorios[accessoryId]?.precios[modo][tipo] ?? 0
+  const addCustomProduct = useCallback((product) => {
+    setCustomProducts(prev => {
+      const next = [...prev, { ...product, id: `custom_${Date.now()}` }]
+      localStorage.setItem('vag_custom_products', JSON.stringify(next))
+      return next
+    })
+    showToastMessage('Producto agregado')
+  }, [showToastMessage])
+
+  const updateCustomProduct = useCallback((productId, updates) => {
+    setCustomProducts(prev => {
+      const next = prev.map(p => p.id === productId ? { ...p, ...updates } : p)
+      localStorage.setItem('vag_custom_products', JSON.stringify(next))
+      return next
+    })
+    setHasUnsavedChanges(true)
+  }, [])
+
+  const deleteCustomProduct = useCallback((productId) => {
+    setCustomProducts(prev => {
+      const next = prev.filter(p => p.id !== productId)
+      localStorage.setItem('vag_custom_products', JSON.stringify(next))
+      return next
+    })
+    showToastMessage('Producto eliminado')
+  }, [showToastMessage])
+
+  const enableSync = useCallback(async (enabled) => {
+    setSyncEnabled(enabled)
+    if (enabled) {
+      await loadFromCloud()
+    } else {
+      setSyncStatus('idle')
     }
-    return prices[productId]?.precios[modo][tipo] ?? 0
-  }, [prices])
+  }, [loadFromCloud])
 
   const value = {
     priceMode,
     setPriceMode,
     prices,
     setPrices,
+    customProducts,
+    addCustomProduct,
+    updateCustomProduct,
+    deleteCustomProduct,
     updatePrice,
-    markFieldEdited,
     resetPrices,
     savePrices,
     hasUnsavedChanges,
-    getPrice,
-    loadedFromStorage,
+    syncStatus,
+    lastSynced,
+    enableSync,
+    loadFromCloud,
     showToast,
     toastMessage
   }

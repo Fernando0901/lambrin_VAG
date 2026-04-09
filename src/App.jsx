@@ -6,6 +6,7 @@ import AreaVisualizer from './components/AreaVisualizer'
 import ResultsTable from './components/ResultsTable'
 import PrintSummary from './components/PrintSummary'
 import PriceManager from './components/PriceManager'
+import CustomProductPanel from './components/CustomProductPanel'
 import { products } from './data/products'
 import { calculateBothModes } from './utils/calculator'
 import { usePrices } from './context/PriceContext'
@@ -16,25 +17,33 @@ function App() {
   const [areas, setAreas] = useState([])
   const [calculationBoth, setCalculationBoth] = useState(null)
   const [priceDrawerOpen, setPriceDrawerOpen] = useState(false)
+  const [customProductPanelOpen, setCustomProductPanelOpen] = useState(false)
 
-  const { prices, priceMode, showToast, toastMessage } = usePrices()
+  const { prices, priceMode, showToast, toastMessage, customProducts } = usePrices()
 
   useEffect(() => {
-    if (selectedProduct) {
-      const product = products[selectedProduct]
-      setSelectedColor(product.colors[0])
+    const allProducts = { ...products }
+    customProducts.forEach(cp => { allProducts[cp.id] = cp })
+    const current = allProducts[selectedProduct]
+    if (current?.colors?.length > 0) {
+      setSelectedColor(current.colors[0])
+    }
+    if (selectedProduct.startsWith('custom_')) {
       setAreas([])
     }
-  }, [selectedProduct])
+  }, [selectedProduct, customProducts])
 
   useEffect(() => {
-    if (areas.length > 0 && selectedProduct && selectedColor) {
+    const allProducts = { ...products }
+    customProducts.forEach(cp => { allProducts[cp.id] = cp })
+    const current = allProducts[selectedProduct]
+    if (areas.length > 0 && selectedProduct && selectedColor && current) {
       const result = calculateBothModes(selectedProduct, areas, selectedColor, prices)
       setCalculationBoth(result)
     } else {
       setCalculationBoth(null)
     }
-  }, [selectedProduct, areas, selectedColor, prices])
+  }, [selectedProduct, areas, selectedColor, prices, customProducts])
 
   const handleProductChange = (productId) => setSelectedProduct(productId)
   const handleColorChange = (color) => setSelectedColor(color)
@@ -51,7 +60,9 @@ function App() {
     ? 'bg-green-500/20 text-green-400 border-green-500/30'
     : 'bg-red-500/20 text-red-400 border-red-500/30'
 
-  const currentProduct = products[selectedProduct]
+  const allProducts = { ...products }
+  customProducts.forEach(cp => { allProducts[cp.id] = cp })
+  const currentProduct = allProducts[selectedProduct]
 
   return (
     <div className="min-h-screen bg-bg-dark">
@@ -74,11 +85,22 @@ function App() {
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               <span className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border ${badgeClass}`}>
                 <span className="w-1.5 h-1.5 rounded-full bg-current" />
-                {priceMode === 'venta' ? 'Viendo: Precio Venta' : 'Viendo: Precio Costo'}
+                {priceMode === 'venta' ? 'Venta' : 'Costo'}
               </span>
+
+              <button
+                onClick={() => setCustomProductPanelOpen(true)}
+                className="flex items-center gap-2 px-3 py-2 bg-bg-dark hover:bg-border-subtle text-text-secondary hover:text-text-primary border border-border-subtle rounded-lg transition-colors text-sm font-medium"
+                title="Gestionar productos y sincronización"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+                <span className="hidden sm:inline">Productos</span>
+              </button>
 
               <button
                 onClick={() => setPriceDrawerOpen(true)}
@@ -109,6 +131,7 @@ function App() {
       </AnimatePresence>
 
       <PriceManager isOpen={priceDrawerOpen} onClose={() => setPriceDrawerOpen(false)} />
+      <CustomProductPanel isOpen={customProductPanelOpen} onClose={() => setCustomProductPanelOpen(false)} />
 
       <main className="max-w-7xl mx-auto px-4 py-6">
         <AnimatePresence mode="wait">

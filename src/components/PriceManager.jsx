@@ -5,7 +5,7 @@ import { products } from '../data/products'
 import { formatCurrency } from '../data/products'
 
 export default function PriceManager({ isOpen, onClose }) {
-  const { priceMode, setPriceMode, prices, updatePrice, resetPrices, savePrices, hasUnsavedChanges } = usePrices()
+  const { priceMode, setPriceMode, prices, updatePrice, resetPrices, savePrices, hasUnsavedChanges, customProducts } = usePrices()
   const [editedFields, setEditedFields] = useState({})
 
   const handleToggle = (mode) => {
@@ -132,6 +132,58 @@ export default function PriceManager({ isOpen, onClose }) {
           </tr>
         )
       }
+    }
+  }
+
+  for (const cp of customProducts) {
+    const cpPrices = prices[cp.id]?.precios || cp.precios
+    const cpPiezaCosto = cpPrices?.costo?.pieza ?? 0
+    const cpPiezaVenta = cpPrices?.venta?.pieza ?? 0
+    const cpCajaCosto = cpPrices?.costo?.caja ?? 0
+    const cpCajaVenta = cpPrices?.venta?.caja ?? 0
+
+    rowsCosto.push(
+      <tr key={`${cp.id}-costo`} className="border-t border-border-subtle/30">
+        <td className="p-3 text-sm text-text-primary">
+          <span>{cp.name}</span>
+          <span className="ml-2 text-xs px-1.5 py-0.5 bg-accent/20 text-accent rounded">Custom</span>
+        </td>
+        <td className="p-2">{renderInput(cp.id, null, 'costo', 'pieza', cpPiezaCosto, false)}</td>
+        <td className="p-2">{renderInput(cp.id, null, 'costo', 'caja', cpCajaCosto, false)}</td>
+      </tr>
+    )
+    rowsVenta.push(
+      <tr key={`${cp.id}-venta`} className="border-t border-border-subtle/30">
+        <td className="p-3 text-sm text-text-primary">
+          <span>{cp.name}</span>
+          <span className="ml-2 text-xs px-1.5 py-0.5 bg-accent/20 text-accent rounded">Custom</span>
+        </td>
+        <td className="p-2">{renderInput(cp.id, null, 'venta', 'pieza', cpPiezaVenta, false)}</td>
+        <td className="p-2">{renderInput(cp.id, null, 'venta', 'caja', cpCajaVenta, false)}</td>
+      </tr>
+    )
+
+    for (const [aid, acc] of Object.entries(cp.accesorios || {})) {
+      const accPiezaCosto = prices[cp.id]?.accesorios?.[aid]?.precios?.costo?.pieza ?? acc.precios.costo.pieza
+      const accPiezaVenta = prices[cp.id]?.accesorios?.[aid]?.precios?.venta?.pieza ?? acc.precios.venta.pieza
+      const accCajaCosto = prices[cp.id]?.accesorios?.[aid]?.precios?.costo?.caja ?? acc.precios.costo.caja
+      const accCajaVenta = prices[cp.id]?.accesorios?.[aid]?.precios?.venta?.caja ?? acc.precios.venta.caja
+      const hasBox = acc.piezasPorCaja
+
+      rowsCosto.push(
+        <tr key={`${cp.id}-${aid}-costo`} className="border-t border-border-subtle/30">
+          <td className="p-3 text-sm text-text-primary pl-6">{acc.nombre}</td>
+          <td className="p-2">{renderInput(cp.id, aid, 'costo', 'pieza', accPiezaCosto, false)}</td>
+          <td className="p-2">{renderInput(cp.id, aid, 'costo', 'caja', accCajaCosto, !hasBox)}</td>
+        </tr>
+      )
+      rowsVenta.push(
+        <tr key={`${cp.id}-${aid}-venta`} className="border-t border-border-subtle/30">
+          <td className="p-3 text-sm text-text-primary pl-6">{acc.nombre}</td>
+          <td className="p-2">{renderInput(cp.id, aid, 'venta', 'pieza', accPiezaVenta, false)}</td>
+          <td className="p-2">{renderInput(cp.id, aid, 'venta', 'caja', accCajaVenta, !hasBox)}</td>
+        </tr>
+      )
     }
   }
 

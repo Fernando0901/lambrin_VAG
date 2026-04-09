@@ -2,10 +2,13 @@ import { motion } from 'framer-motion'
 import { products } from '../data/products'
 import { usePrices } from '../context/PriceContext'
 
-const productList = Object.values(products)
-
 export default function ProductSelector({ selectedProduct, selectedColor, onProductChange, onColorChange }) {
-  const { priceMode } = usePrices()
+  const { priceMode, customProducts } = usePrices()
+
+  const allProducts = [
+    ...Object.values(products),
+    ...customProducts
+  ]
 
   const badgeClass = priceMode === 'venta'
     ? 'bg-green-500/20 text-green-400 border-green-500/30'
@@ -18,7 +21,7 @@ export default function ProductSelector({ selectedProduct, selectedColor, onProd
           Selecciona un Producto
         </h3>
         <div className="grid grid-cols-1 gap-3">
-          {productList.map((product) => (
+          {allProducts.map((product) => (
             <motion.button
               key={product.id}
               whileHover={{ scale: 1.02 }}
@@ -34,6 +37,9 @@ export default function ProductSelector({ selectedProduct, selectedColor, onProd
                 <div className="text-left">
                   <h4 className="font-heading font-semibold text-lg text-text-primary">
                     {product.name}
+                    {product.isCustom && (
+                      <span className="ml-2 text-xs px-1.5 py-0.5 bg-accent/20 text-accent rounded">Custom</span>
+                    )}
                   </h4>
                   <p className="text-sm text-text-secondary mt-1">
                     {product.dimensions.width} m × {product.dimensions.length} m
@@ -66,7 +72,7 @@ export default function ProductSelector({ selectedProduct, selectedColor, onProd
           </span>
         </div>
         <div className="flex flex-wrap gap-3">
-          {products[selectedProduct]?.colors.map((color) => (
+          {allProducts.find(p => p.id === selectedProduct)?.colors.map((color) => (
             <motion.button
               key={color.name}
               whileHover={{ scale: 1.1 }}
