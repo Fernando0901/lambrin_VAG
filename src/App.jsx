@@ -18,6 +18,7 @@ function App() {
   const [calculationBoth, setCalculationBoth] = useState(null)
   const [priceDrawerOpen, setPriceDrawerOpen] = useState(false)
   const [customProductPanelOpen, setCustomProductPanelOpen] = useState(false)
+  const [orientation, setOrientation] = useState('horizontal')
 
   const { prices, priceMode, showToast, toastMessage, customProducts } = usePrices()
 
@@ -31,6 +32,7 @@ function App() {
     if (selectedProduct.startsWith('custom_')) {
       setAreas([])
     }
+    setOrientation('horizontal')
   }, [selectedProduct, customProducts])
 
   useEffect(() => {
@@ -38,12 +40,12 @@ function App() {
     customProducts.forEach(cp => { allProducts[cp.id] = cp })
     const current = allProducts[selectedProduct]
     if (areas.length > 0 && selectedProduct && selectedColor && current) {
-      const result = calculateBothModes(selectedProduct, areas, selectedColor, prices)
+      const result = calculateBothModes(selectedProduct, areas, selectedColor, prices, orientation)
       setCalculationBoth(result)
     } else {
       setCalculationBoth(null)
     }
-  }, [selectedProduct, areas, selectedColor, prices, customProducts])
+  }, [selectedProduct, areas, selectedColor, prices, customProducts, orientation])
 
   const handleProductChange = (productId) => setSelectedProduct(productId)
   const handleColorChange = (color) => setSelectedColor(color)
@@ -175,6 +177,9 @@ function App() {
                     color={selectedColor?.hex || '#D97706'}
                     productName={currentProduct?.name}
                     inputType={currentProduct?.inputType}
+                    orientation={orientation}
+                    onToggleOrientation={() => setOrientation(prev => prev === 'horizontal' ? 'vertical' : 'horizontal')}
+                    placements={calculationBoth.venta.placements}
                   />
                 </>
               )}

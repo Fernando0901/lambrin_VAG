@@ -1,6 +1,70 @@
 import { IVA, products } from '../data/products'
 
-export const calculateMaterial = (productId, areas, color, prices, priceMode = 'venta') => {
+/**
+ * Calcula las piezas necesarias por área usando lógica de colocación física.
+ *
+ * LAMBRIN (wall): lado largo de la pieza → alto de la pared (area.length)
+ *                 lado corto de la pieza → ancho de la pared (area.width)
+ *
+ * PISO (floor):   lado largo de la pieza → ancho del área (area.width) horizontal
+ *                 lado corto de la pieza → largo del área (area.length) en filas
+ *                 Patrón cocido: cada fila impar se desplaza medio largo de pieza
+ *
+ * orientation='horizontal' es el default descrito arriba.
+ * orientation='vertical' intercambia la orientación de la pieza.
+ */
+export const calculatePlacementForArea = (area, product, orientation = 'horizontal') => {
+  const isWall = product.inputType === 'wall'
+  const pW = product.dimensions.width   // lado corto de la pieza
+  const pL = product.dimensions.length  // lado largo de la pieza
+
+  let pieceDimAlongWidth, pieceDimAlongLength
+
+  if (orientation === 'horizontal') {
+    if (isWall) {
+      // Largo pieza → alto pared, corto pieza → ancho pared
+      pieceDimAlongWidth = pW   // 0.16 m a lo ancho de la pared
+      pieceDimAlongLength = pL  // 2.90 m a lo alto de la pared
+    } else {
+      // Largo pieza → ancho área (horizontal), corto pieza → largo área (filas)
+      pieceDimAlongWidth = pL   // 1.22 m a lo ancho
+      pieceDimAlongLength = pW  // 0.18 m filas a lo largo
+    }
+  } else {
+    // Vertical: intercambia orientación de la pieza
+    if (isWall) {
+      pieceDimAlongWidth = pL
+      pieceDimAlongLength = pW
+    } else {
+      pieceDimAlongWidth = pW
+      pieceDimAlongLength = pL
+    }
+  }
+
+  const columns = Math.ceil(area.width / pieceDimAlongWidth)
+  const rows = Math.ceil(area.length / pieceDimAlongLength)
+  const pieces = columns * rows
+
+  const remainingWidth = area.width - (columns - 1) * pieceDimAlongWidth
+  const remainingLength = area.length - (rows - 1) * pieceDimAlongLength
+
+  const cutWidth = remainingWidth < pieceDimAlongWidth - 0.001 ? remainingWidth : null
+  const cutLength = remainingLength < pieceDimAlongLength - 0.001 ? remainingLength : null
+
+  return {
+    columns,
+    rows,
+    pieces,
+    pieceDimAlongWidth,
+    pieceDimAlongLength,
+    cutWidth,
+    cutLength,
+    remainingWidth,
+    remainingLength
+  }
+}
+
+export const calculateMaterial = (productId, areas, color, prices, priceMode = 'venta', orientation = 'horizontal') => {
   const product = products[productId]
   if (!product) return null
 
@@ -8,9 +72,10 @@ export const calculateMaterial = (productId, areas, color, prices, priceMode = '
   const modo = priceMode || 'venta'
 
   const totalArea = areas.reduce((sum, area) => sum + (area.width * area.length), 0)
-  const pieceArea = product.dimensions.width * product.dimensions.length
 
-  const piecesNeeded = Math.ceil(totalArea / pieceArea)
+  // Calcular piezas por colocación física (filas × columnas) por cada área
+  const placements = areas.map(area => calculatePlacementForArea(area, product, orientation))
+  const piecesNeeded = placements.reduce((sum, p) => sum + p.pieces, 0)
   const boxesNeeded = Math.ceil(piecesNeeded / product.piecesPerBox)
 
   let pricePieza, priceCaja
@@ -151,13 +216,15 @@ export const calculateMaterial = (productId, areas, color, prices, priceMode = '
     perimeterTotal,
     lengthTotal,
     pieceWidth: product.dimensions.width,
-    pieceLength: product.dimensions.length
+    pieceLength: product.dimensions.length,
+    orientation,
+    placements
   }
 }
 
-export const calculateBothModes = (productId, areas, color, prices) => {
-  const venta = calculateMaterial(productId, areas, color, prices, 'venta')
-  const costo = calculateMaterial(productId, areas, color, prices, 'costo')
+export const calculateBothModes = (productId, areas, color, prices, orientation = 'horizontal') => {
+  const venta = calculateMaterial(productId, areas, color, prices, 'venta', orientation)
+  const costo = calculateMaterial(productId, areas, color, prices, 'costo', orientation)
 
   if (!venta || !costo) return null
 
