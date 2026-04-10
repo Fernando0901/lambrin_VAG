@@ -19,6 +19,7 @@ function App() {
   const [priceDrawerOpen, setPriceDrawerOpen] = useState(false)
   const [customProductPanelOpen, setCustomProductPanelOpen] = useState(false)
   const [orientation, setOrientation] = useState('horizontal')
+  const [includeAccessories, setIncludeAccessories] = useState(true)
 
   const { prices, priceMode, showToast, toastMessage, customProducts } = usePrices()
 
@@ -164,7 +165,11 @@ function App() {
                 />
               </div>
 
-              <PrintSummary calculationBoth={calculationBoth} priceMode={priceMode} />
+              <PrintSummary
+                calculationBoth={calculationBoth}
+                priceMode={priceMode}
+                includeAccessories={includeAccessories}
+              />
             </div>
 
             <div className="space-y-6">
@@ -184,7 +189,11 @@ function App() {
                 </>
               )}
 
-              <ResultsTable calculationBoth={calculationBoth} />
+              <ResultsTable
+                calculationBoth={calculationBoth}
+                includeAccessories={includeAccessories}
+                onToggleAccessories={() => setIncludeAccessories(prev => !prev)}
+              />
             </div>
           </motion.div>
         </AnimatePresence>

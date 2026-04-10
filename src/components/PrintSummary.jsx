@@ -2,7 +2,7 @@ import React from 'react'
 import { motion } from 'framer-motion'
 import { formatCurrency, IVA } from '../data/products'
 
-export default function PrintSummary({ calculationBoth, priceMode }) {
+export default function PrintSummary({ calculationBoth, priceMode, includeAccessories = true }) {
   const handlePrint = () => {
     window.print()
   }
@@ -59,7 +59,8 @@ export default function PrintSummary({ calculationBoth, priceMode }) {
   }
 
   // Accesorios
-  current.accessories.forEach(acc => {
+  if (includeAccessories) {
+    current.accessories.forEach(acc => {
     if (acc.piecesPerBox && acc.boxPrice != null) {
       const accFullBoxes = Math.floor(acc.quantity / acc.piecesPerBox)
       const accLoose = acc.quantity - accFullBoxes * acc.piecesPerBox
@@ -93,17 +94,8 @@ export default function PrintSummary({ calculationBoth, priceMode }) {
           total: acc.quantity * acc.unitPrice
         })
       }
-    } else {
-      rows.push({
-        partida: partida++,
-        concept: acc.name,
-        quantity: acc.quantity,
-        unit: 'Piezas',
-        unitPrice: acc.unitPrice,
-        total: acc.quantity * acc.unitPrice
-      })
     }
-  })
+  })}
 
   const subtotalSinIVA = rows.reduce((sum, r) => sum + r.total, 0)
   const ivaAmount = subtotalSinIVA * IVA
