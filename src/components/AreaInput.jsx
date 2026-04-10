@@ -6,29 +6,35 @@ export default function AreaInput({ productId, areas, onAreaAdd, onAreaRemove })
   const product = products[productId]
   const isWall = product?.inputType === 'wall'
 
-  const [newWidth, setNewWidth] = React.useState('')
-  const [newHeight, setNewHeight] = React.useState('')
+  // Para pared: campo1 = Ancho, campo2 = Alto
+  // Para piso:  campo1 = Largo, campo2 = Ancho
+  const [field1, setField1] = React.useState('')
+  const [field2, setField2] = React.useState('')
 
   React.useEffect(() => {
-    setNewWidth('')
-    setNewHeight('')
+    setField1('')
+    setField2('')
   }, [productId])
 
   const handleAdd = () => {
-    const width = parseFloat(newWidth) || 0
-    const height = parseFloat(newHeight) || 0
+    const val1 = parseFloat(field1) || 0
+    const val2 = parseFloat(field2) || 0
 
-    if (width > 0 && height > 0) {
-      onAreaAdd({ width, length: height })
-      setNewWidth('')
-      setNewHeight('')
+    if (val1 > 0 && val2 > 0) {
+      if (isWall) {
+        // campo1=Ancho → area.width, campo2=Alto → area.length
+        onAreaAdd({ width: val1, length: val2 })
+      } else {
+        // campo1=Largo → area.length, campo2=Ancho → area.width
+        onAreaAdd({ width: val2, length: val1 })
+      }
+      setField1('')
+      setField2('')
     }
   }
 
   const handleKeyDown = (e) => {
-    if (e.key === 'Enter') {
-      handleAdd()
-    }
+    if (e.key === 'Enter') handleAdd()
   }
 
   const totalArea = areas.reduce((sum, area) => sum + (area.width * area.length), 0)
@@ -48,8 +54,8 @@ export default function AreaInput({ productId, areas, onAreaAdd, onAreaRemove })
             type="number"
             step="0.01"
             min="0"
-            value={newWidth}
-            onChange={(e) => setNewWidth(e.target.value)}
+            value={field1}
+            onChange={(e) => setField1(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="0.00"
             className="w-full px-3 py-2 bg-bg-dark border border-border-subtle rounded-lg text-text-primary placeholder-text-secondary/50 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-colors"
@@ -63,8 +69,8 @@ export default function AreaInput({ productId, areas, onAreaAdd, onAreaRemove })
             type="number"
             step="0.01"
             min="0"
-            value={newHeight}
-            onChange={(e) => setNewHeight(e.target.value)}
+            value={field2}
+            onChange={(e) => setField2(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="0.00"
             className="w-full px-3 py-2 bg-bg-dark border border-border-subtle rounded-lg text-text-primary placeholder-text-secondary/50 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-colors"
@@ -76,7 +82,7 @@ export default function AreaInput({ productId, areas, onAreaAdd, onAreaRemove })
         whileHover={{ scale: 1.02 }}
         whileTap={{ scale: 0.98 }}
         onClick={handleAdd}
-        disabled={!newWidth || !newHeight}
+        disabled={!field1 || !field2}
         className="w-full py-2.5 bg-accent hover:bg-accent-hover disabled:bg-border-subtle disabled:cursor-not-allowed text-bg-dark font-semibold rounded-lg transition-colors"
       >
         + Agregar Área
@@ -107,12 +113,12 @@ export default function AreaInput({ productId, areas, onAreaAdd, onAreaRemove })
                       <span className="text-sm text-text-primary">
                         {isWall ? (
                           <>
-                            {area.width} m × {area.length} m ={' '}
+                            {area.width} m ancho × {area.length} m alto ={' '}
                             <span className="text-accent">{(area.width * area.length).toFixed(2)} m²</span>
                           </>
                         ) : (
                           <>
-                            {area.length} m × {area.width} m ={' '}
+                            {area.length} m largo × {area.width} m ancho ={' '}
                             <span className="text-accent">{(area.width * area.length).toFixed(2)} m²</span>
                           </>
                         )}

@@ -77,6 +77,11 @@ export const calculateMaterial = (productId, areas, color, prices, priceMode = '
   const placements = areas.map(area => calculatePlacementForArea(area, product, orientation))
   const piecesNeeded = placements.reduce((sum, p) => sum + p.pieces, 0)
   const boxesNeeded = Math.ceil(piecesNeeded / product.piecesPerBox)
+  // Desglose: cajas completas + piezas sueltas
+  const fullBoxes = Math.floor(piecesNeeded / product.piecesPerBox)
+  const loosePieces = piecesNeeded - fullBoxes * product.piecesPerBox
+  // Si loosePieces > 0 necesitamos 1 caja más (boxesNeeded = fullBoxes + 1)
+  // El cliente puede elegir comprar por pieza o la caja completa
 
   let pricePieza, priceCaja
 
@@ -218,7 +223,10 @@ export const calculateMaterial = (productId, areas, color, prices, priceMode = '
     pieceWidth: product.dimensions.width,
     pieceLength: product.dimensions.length,
     orientation,
-    placements
+    placements,
+    fullBoxes,
+    loosePieces,
+    piecesPerBox: product.piecesPerBox
   }
 }
 

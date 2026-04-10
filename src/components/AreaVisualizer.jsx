@@ -13,7 +13,7 @@ export default function AreaVisualizer({
   placements = []
 }) {
   const isWall = inputType === 'wall'
-  const isFloor = inputType === 'floor'
+  const isFloor = !isWall
 
   const areaStats = useMemo(() => {
     return areas.map((area, idx) => {
@@ -26,28 +26,56 @@ export default function AreaVisualizer({
         cutWidth, cutLength
       } = placement
 
+      // Calcular desglose detallado de cortes
+      const fullCols = cutWidth ? columns - 1 : columns
+      const fullRows = cutLength ? rows - 1 : rows
+
+      const fullPieces = fullCols * fullRows
+      const cutWidthPieces = cutWidth ? fullRows : 0          // piezas cortadas solo en ancho
+      const cutLengthPieces = cutLength ? fullCols : 0        // piezas cortadas solo en largo
+      const cutCornerPieces = (cutWidth && cutLength) ? 1 : 0 // pieza esquina (doble corte)
+
       return {
         area,
-        columns,
-        rows,
-        pieces,
-        pieceDimAlongWidth,
-        pieceDimAlongLength,
-        cutWidth,
-        cutLength
+        columns, rows, pieces,
+        pieceDimAlongWidth, pieceDimAlongLength,
+        cutWidth, cutLength,
+        fullCols, fullRows,
+        fullPieces,
+        cutWidthPieces,
+        cutLengthPieces,
+        cutCornerPieces
       }
     }).filter(Boolean)
   }, [areas, placements])
 
   const totalPieces = areaStats.reduce((sum, s) => sum + s.pieces, 0)
   const totalArea = areas.reduce((sum, a) => sum + (a.width * a.length), 0)
+  const totalFullPieces = areaStats.reduce((sum, s) => sum + s.fullPieces, 0)
+  const totalCutPieces = totalPieces - totalFullPieces
 
-  const totalFullPieces = areaStats.reduce((sum, s) => {
-    const fullCols = s.cutWidth ? s.columns - 1 : s.columns
-    const fullRows = s.cutLength ? s.rows - 1 : s.rows
-    return sum + fullCols * fullRows
-  }, 0)
-  const totalPartialPieces = totalPieces - totalFullPieces
+  // Etiquetas de dimensión según orientación
+  const pieceLabelLong = `${pieceLength} m`
+  const pieceLabelShort = `${pieceWidth} m`
+
+  let dimAlongWidthLabel, dimAlongLengthLabel
+  if (orientation === 'horizontal') {
+    if (isWall) {
+      dimAlongWidthLabel = pieceLabelShort
+      dimAlongLengthLabel = pieceLabelLong
+    } else {
+      dimAlongWidthLabel = pieceLabelLong
+      dimAlongLengthLabel = pieceLabelShort
+    }
+  } else {
+    if (isWall) {
+      dimAlongWidthLabel = pieceLabelLong
+      dimAlongLengthLabel = pieceLabelShort
+    } else {
+      dimAlongWidthLabel = pieceLabelShort
+      dimAlongLengthLabel = pieceLabelLong
+    }
+  }
 
   return (
     <motion.div
@@ -63,7 +91,7 @@ export default function AreaVisualizer({
           <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: color }} />
           <span className="text-xs text-text-secondary">{productName}</span>
           <span className="text-xs text-text-secondary ml-2">
-            {pieceWidth} × {pieceLength} m
+            Pieza: {pieceWidth} × {pieceLength} m
           </span>
         </div>
       </div>
@@ -79,37 +107,44 @@ export default function AreaVisualizer({
               d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
           </svg>
           <span>
-            Cambiar orientación: <span className="text-accent font-bold">{orientation === 'horizontal' ? 'Horizontal' : 'Vertical'}</span>
+            Orientación: <span className="text-accent font-bold">{orientation === 'horizontal' ? 'Horizontal' : 'Vertical'}</span>
           </span>
           <span className="text-xs text-text-secondary ml-1">
-            ({orientation === 'horizontal'
-              ? (isWall
-                ? `${pieceLength}m ↕ × ${pieceWidth}m ↔`
-                : `${pieceLength}m ↔ × ${pieceWidth}m ↕`)
-              : (isWall
-                ? `${pieceWidth}m ↕ × ${pieceLength}m ↔`
-                : `${pieceWidth}m ↔ × ${pieceLength}m ↕`)
-            })
+            ({isWall ? 'ancho' : 'ancho'}: {dimAlongWidthLabel} | {isWall ? 'alto' : 'largo'}: {dimAlongLengthLabel})
           </span>
         </button>
       </div>
 
       <div className="p-4 space-y-6">
         {areaStats.map((stat, idx) => {
-          const cellW = 50
-          const cellH = 50
-          const padding = 10
-          const labelSpace = 20
+          // SVG proporcional al área real
+          const maxSvgW = 400
+          const maxSvgH = 280
+          const margin = { top: 18, right: 10, bottom: 10, left: 22 }
 
-          // For brick pattern on floors, offset odd rows
+          const areaW = stat.area.width
+          const areaH = stat.area.length
+
+          const drawW = maxSvgW - margin.left - margin.right
+          const drawH = maxSvgH - margin.top - margin.bottom
+
+          const scale = Math.min(drawW / areaW, drawH / areaH)
+          const svgAreaW = areaW * scale
+          const svgAreaH = areaH * scale
+
+          const svgW = svgAreaW + margin.left + margin.right
+          const svgH = svgAreaH + margin.top + margin.bottom
+
+          const cellW = stat.pieceDimAlongWidth * scale
+          const cellH = stat.pieceDimAlongLength * scale
+          const cutCellW = stat.cutWidth ? stat.cutWidth * scale : 0
+          const cutCellH = stat.cutLength ? stat.cutLength * scale : 0
+
           const isBrick = isFloor
-
-          const svgW = stat.columns * cellW + padding * 2 + labelSpace
-          const svgH = stat.rows * cellH + padding * 2 + labelSpace
 
           return (
             <div key={idx} className="border border-border-subtle rounded-lg overflow-hidden">
-              <div className="bg-bg-dark px-4 py-2 flex items-center justify-between">
+              <div className="bg-bg-dark px-4 py-2 flex items-center justify-between flex-wrap gap-2">
                 <span className="text-sm font-medium text-text-primary">
                   {isWall ? 'Pared' : 'Área'} {idx + 1}
                 </span>
@@ -123,103 +158,116 @@ export default function AreaVisualizer({
               </div>
 
               <div className="p-4">
-                <div className="flex gap-6">
-                  <div className="flex-1">
+                <div className="flex gap-4 flex-col lg:flex-row">
+                  {/* SVG visualización */}
+                  <div className="flex-1 flex justify-center">
                     <svg
                       viewBox={`0 0 ${svgW} ${svgH}`}
                       className="w-full"
-                      style={{ maxHeight: 260 }}
+                      style={{ maxHeight: 300, maxWidth: 420 }}
                     >
-                      {/* Fondo del área */}
+                      {/* Borde del área */}
                       <rect
-                        x={labelSpace}
-                        y={padding}
-                        width={stat.columns * cellW}
-                        height={stat.rows * cellH}
-                        fill={`${color}15`}
+                        x={margin.left}
+                        y={margin.top}
+                        width={svgAreaW}
+                        height={svgAreaH}
+                        fill="none"
                         stroke={color}
                         strokeWidth="2"
                       />
 
-                      {/* Piezas */}
+                      {/* Piezas - renderizar fila por fila */}
                       {Array.from({ length: stat.rows }).map((_, row) => {
-                        const offsetX = (isBrick && row % 2 === 1) ? cellW / 2 : 0
-                        const isLastRow = row === stat.rows - 1 && stat.cutLength
-                        return Array.from({ length: stat.columns }).map((_, col) => {
-                          const isLastCol = col === stat.columns - 1 && stat.cutWidth
-                          const isCut = isLastRow || isLastCol
+                        const isOddRow = row % 2 === 1
+                        const brickOffset = (isBrick && isOddRow) ? cellW / 2 : 0
+                        const yPos = margin.top + row * cellH
+                        const h = (row < stat.fullRows) ? cellH : cutCellH
 
-                          // For brick pattern: first piece of odd row is "half"
-                          const isBrickHalf = isBrick && row % 2 === 1 && (col === 0 || col === stat.columns - 1)
+                        // Para patrón cocido en filas impares, necesitamos generar piezas
+                        // que llenen completamente el ancho incluyendo el offset
+                        const piecesInRow = []
 
-                          const x = labelSpace + padding / 2 + col * cellW + offsetX
-                          const y = padding + padding / 2 + row * cellH
-                          const w = cellW - padding / 2
-                          const h = cellH - padding / 2
+                        if (isBrick && isOddRow) {
+                          // Fila con offset: media pieza al inicio
+                          // Primera media pieza
+                          piecesInRow.push({
+                            x: margin.left,
+                            w: Math.min(cellW / 2, svgAreaW),
+                            isCut: true,
+                            isHalfBrick: true
+                          })
 
-                          // Clip pieces to the area boundary
-                          const maxX = labelSpace + stat.columns * cellW
-                          const clippedW = Math.min(w, maxX - x - 2)
-                          if (clippedW <= 2) return null
+                          // Piezas completas después del offset
+                          let currentX = cellW / 2
+                          for (let col = 0; currentX < svgAreaW - 0.5; col++) {
+                            const remaining = svgAreaW - currentX
+                            const w = Math.min(cellW, remaining)
+                            const isCutW = w < cellW - 0.5
+                            piecesInRow.push({
+                              x: margin.left + currentX,
+                              w: w,
+                              isCut: isCutW || (row >= stat.fullRows),
+                              isHalfBrick: false
+                            })
+                            currentX += cellW
+                          }
+                        } else {
+                          // Fila normal (sin offset)
+                          for (let col = 0; col < stat.columns; col++) {
+                            const w = (col < stat.fullCols) ? cellW : cutCellW
+                            piecesInRow.push({
+                              x: margin.left + col * cellW,
+                              w: w,
+                              isCut: (col >= stat.fullCols) || (row >= stat.fullRows),
+                              isHalfBrick: false
+                            })
+                          }
+                        }
 
-                          return (
-                            <rect
-                              key={`${row}-${col}`}
-                              x={x}
-                              y={y}
-                              width={clippedW}
-                              height={h}
-                              fill={isCut || isBrickHalf ? `${color}AA` : color}
-                              stroke="#374151"
-                              strokeWidth="1"
-                              strokeDasharray={isCut || isBrickHalf ? "4 2" : "none"}
-                              rx="2"
-                            />
-                          )
-                        })
+                        return piecesInRow.map((piece, pi) => (
+                          <rect
+                            key={`${row}-${pi}`}
+                            x={piece.x + 0.5}
+                            y={yPos + 0.5}
+                            width={Math.max(piece.w - 1, 1)}
+                            height={Math.max(h - 1, 1)}
+                            fill={piece.isCut || piece.isHalfBrick ? `${color}88` : color}
+                            stroke="#374151"
+                            strokeWidth="0.5"
+                            strokeDasharray={piece.isCut || piece.isHalfBrick ? "3 1.5" : "none"}
+                            rx="1"
+                          />
+                        ))
                       })}
 
-                      {/* Etiqueta superior: columnas */}
+                      {/* Etiqueta superior: ancho */}
                       <text
-                        x={labelSpace + (stat.columns * cellW) / 2}
-                        y={padding - 2}
+                        x={margin.left + svgAreaW / 2}
+                        y={margin.top - 5}
                         textAnchor="middle"
                         fontSize="8"
                         fill="#9CA3AF"
                       >
-                        {stat.columns} col × {stat.pieceDimAlongWidth}m
-                        {stat.cutWidth ? ` (últ: ${stat.cutWidth.toFixed(3)}m)` : ''}
+                        {isWall ? 'Ancho' : 'Ancho'}: {stat.area.width} m ({stat.columns} × {stat.pieceDimAlongWidth}m)
                       </text>
 
-                      {/* Etiqueta lateral: filas */}
+                      {/* Etiqueta lateral: largo/alto */}
                       <text
-                        x={labelSpace - 4}
-                        y={padding + (stat.rows * cellH) / 2}
+                        x={margin.left - 5}
+                        y={margin.top + svgAreaH / 2}
                         textAnchor="middle"
                         fontSize="8"
                         fill="#9CA3AF"
-                        transform={`rotate(-90, ${labelSpace - 4}, ${padding + (stat.rows * cellH) / 2})`}
+                        transform={`rotate(-90, ${margin.left - 5}, ${margin.top + svgAreaH / 2})`}
                       >
-                        {stat.rows} filas × {stat.pieceDimAlongLength}m
-                        {stat.cutLength ? ` (últ: ${stat.cutLength.toFixed(3)}m)` : ''}
+                        {isWall ? 'Alto' : 'Largo'}: {stat.area.length} m ({stat.rows} × {stat.pieceDimAlongLength}m)
                       </text>
-
-                      {/* Indicador de patrón cocido */}
-                      {isBrick && stat.rows > 1 && (
-                        <text
-                          x={labelSpace + (stat.columns * cellW) / 2}
-                          y={svgH - 2}
-                          textAnchor="middle"
-                          fontSize="7"
-                          fill="#D97706"
-                        >
-                          Patrón cocido (desfase ½ pieza)
-                        </text>
-                      )}
                     </svg>
                   </div>
 
-                  <div className="w-44 flex flex-col justify-center space-y-2 text-sm">
+                  {/* Detalles numéricos */}
+                  <div className="w-full lg:w-52 flex flex-col justify-center space-y-2 text-sm">
                     <div className="flex justify-between">
                       <span className="text-text-secondary">Columnas:</span>
                       <span className="text-text-primary font-medium">{stat.columns}</span>
@@ -228,36 +276,98 @@ export default function AreaVisualizer({
                       <span className="text-text-secondary">Filas:</span>
                       <span className="text-text-primary font-medium">{stat.rows}</span>
                     </div>
-                    {stat.cutWidth && (
+                    <div className="flex justify-between">
+                      <span className="text-text-secondary">Piezas completas:</span>
+                      <span className="text-green-400 font-medium">{stat.fullPieces}</span>
+                    </div>
+
+                    {stat.cutWidthPieces > 0 && (
                       <div className="flex justify-between">
-                        <span className="text-text-secondary">Corte ancho:</span>
-                        <span className="text-amber-400 font-medium">{stat.cutWidth.toFixed(3)} m</span>
+                        <span className="text-text-secondary">Cortadas ({isWall ? 'ancho' : 'ancho'}):</span>
+                        <span className="text-amber-400 font-medium">{stat.cutWidthPieces} pza{stat.cutWidthPieces !== 1 ? 's' : ''}</span>
                       </div>
                     )}
-                    {stat.cutLength && (
+                    {stat.cutLengthPieces > 0 && (
                       <div className="flex justify-between">
-                        <span className="text-text-secondary">Corte {isWall ? 'alto' : 'largo'}:</span>
-                        <span className="text-amber-400 font-medium">{stat.cutLength.toFixed(3)} m</span>
+                        <span className="text-text-secondary">Cortadas ({isWall ? 'alto' : 'largo'}):</span>
+                        <span className="text-amber-400 font-medium">{stat.cutLengthPieces} pza{stat.cutLengthPieces !== 1 ? 's' : ''}</span>
                       </div>
                     )}
+                    {stat.cutCornerPieces > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-text-secondary">Esquina (doble corte):</span>
+                        <span className="text-amber-400 font-medium">{stat.cutCornerPieces} pza</span>
+                      </div>
+                    )}
+
                     {isBrick && stat.rows > 1 && (
                       <div className="flex justify-between">
                         <span className="text-text-secondary">Patrón:</span>
                         <span className="text-amber-400 font-medium">Cocido ½</span>
                       </div>
                     )}
-                    <div className="flex justify-between border-t border-border-subtle pt-2">
-                      <span className="text-text-secondary">Subtotal:</span>
+
+                    <div className="flex justify-between border-t border-border-subtle pt-2 mt-1">
+                      <span className="text-text-secondary font-medium">Subtotal:</span>
                       <span className="text-accent font-bold">{stat.pieces} pieza{stat.pieces !== 1 ? 's' : ''}</span>
                     </div>
                   </div>
                 </div>
+
+                {/* Instrucciones de corte detalladas por área */}
+                {(stat.cutWidth || stat.cutLength || (isBrick && stat.rows > 1)) && (
+                  <div className="mt-4 pt-3 border-t border-border-subtle/50">
+                    <h5 className="text-xs font-heading font-semibold text-text-secondary uppercase mb-2">
+                      Detalle de cortes — {isWall ? 'Pared' : 'Área'} {idx + 1}
+                    </h5>
+                    <div className="space-y-1.5">
+                      {stat.cutWidth && (
+                        <div className="flex items-start gap-2 text-xs">
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 mt-1 shrink-0" />
+                          <span className="text-text-secondary">
+                            <span className="text-amber-400 font-medium">{stat.cutWidthPieces} pieza{stat.cutWidthPieces !== 1 ? 's' : ''}</span> cortada{stat.cutWidthPieces !== 1 ? 's' : ''} a{' '}
+                            <span className="text-text-primary font-medium">{stat.cutWidth.toFixed(3)} m</span> en la medida de{' '}
+                            <span className="text-text-primary">{stat.pieceDimAlongWidth} m</span> ({isWall ? 'ancho' : 'ancho'} de pieza)
+                          </span>
+                        </div>
+                      )}
+                      {stat.cutLength && (
+                        <div className="flex items-start gap-2 text-xs">
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 mt-1 shrink-0" />
+                          <span className="text-text-secondary">
+                            <span className="text-amber-400 font-medium">{stat.cutLengthPieces} pieza{stat.cutLengthPieces !== 1 ? 's' : ''}</span> cortada{stat.cutLengthPieces !== 1 ? 's' : ''} a{' '}
+                            <span className="text-text-primary font-medium">{stat.cutLength.toFixed(3)} m</span> en la medida de{' '}
+                            <span className="text-text-primary">{stat.pieceDimAlongLength} m</span> ({isWall ? 'alto' : 'largo'} de pieza)
+                          </span>
+                        </div>
+                      )}
+                      {stat.cutCornerPieces > 0 && (
+                        <div className="flex items-start gap-2 text-xs">
+                          <span className="w-1.5 h-1.5 rounded-full bg-red-400 mt-1 shrink-0" />
+                          <span className="text-text-secondary">
+                            <span className="text-red-400 font-medium">1 pieza esquina</span> con doble corte:{' '}
+                            <span className="text-text-primary font-medium">{stat.cutWidth.toFixed(3)} m × {stat.cutLength.toFixed(3)} m</span>
+                          </span>
+                        </div>
+                      )}
+                      {isBrick && stat.rows > 1 && (
+                        <div className="flex items-start gap-2 text-xs">
+                          <span className="w-1.5 h-1.5 rounded-full bg-blue-400 mt-1 shrink-0" />
+                          <span className="text-text-secondary">
+                            <span className="text-blue-400 font-medium">Patrón cocido:</span> las filas impares inician con media pieza ({(stat.pieceDimAlongWidth / 2).toFixed(3)} m), cortar por la mitad y pegar.
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )
         })}
       </div>
 
+      {/* Resumen Total */}
       <div className="px-4 pb-4">
         <div className="bg-bg-dark rounded-lg p-4 border border-border-subtle">
           <h4 className="text-sm font-heading font-semibold text-text-primary uppercase mb-3">
@@ -273,7 +383,7 @@ export default function AreaVisualizer({
               <p className="text-xs text-text-secondary mt-1">piezas completas</p>
             </div>
             <div className="text-center">
-              <p className="text-2xl font-heading font-bold text-amber-400">{totalPartialPieces}</p>
+              <p className="text-2xl font-heading font-bold text-amber-400">{totalCutPieces}</p>
               <p className="text-xs text-text-secondary mt-1">piezas con corte</p>
             </div>
             <div className="text-center">
@@ -281,55 +391,22 @@ export default function AreaVisualizer({
               <p className="text-xs text-text-secondary mt-1">total piezas</p>
             </div>
           </div>
-
-          {areaStats.some(s => s.cutWidth || s.cutLength) && (
-            <div className="mt-4 pt-4 border-t border-border-subtle">
-              <h5 className="text-xs font-heading font-semibold text-text-secondary uppercase mb-2">
-                Instrucciones de Corte
-              </h5>
-              <ul className="space-y-1">
-                {areaStats.map((stat, idx) => {
-                  const cuts = []
-                  if (stat.cutWidth) {
-                    const pcsForCut = stat.cutLength ? stat.rows - 1 : stat.rows
-                    cuts.push(`Cortar ${pcsForCut} pieza${pcsForCut !== 1 ? 's' : ''} a ${stat.cutWidth.toFixed(3)} m (ancho)`)
-                  }
-                  if (stat.cutLength) {
-                    const pcsForCut = stat.cutWidth ? stat.columns - 1 : stat.columns
-                    cuts.push(`Cortar ${pcsForCut} pieza${pcsForCut !== 1 ? 's' : ''} a ${stat.cutLength.toFixed(3)} m (${isWall ? 'alto' : 'largo'})`)
-                  }
-                  if (stat.cutWidth && stat.cutLength) {
-                    cuts.push(`1 esquina: corte ${stat.cutWidth.toFixed(3)} m × ${stat.cutLength.toFixed(3)} m`)
-                  }
-                  if (isFloor && stat.rows > 1) {
-                    cuts.push(`Patrón cocido: cortar 1 pieza por la mitad para filas impares`)
-                  }
-                  if (cuts.length === 0) return null
-                  return (
-                    <li key={idx} className="text-xs text-text-secondary">
-                      <span className="text-accent font-medium">{isWall ? 'Pared' : 'Área'} {idx + 1}:</span>{' '}
-                      {cuts.join(' | ')}
-                    </li>
-                  )
-                })}
-              </ul>
-            </div>
-          )}
         </div>
       </div>
 
-      <div className="px-4 pb-4 flex items-center gap-4 text-xs text-text-secondary">
+      {/* Leyenda */}
+      <div className="px-4 pb-4 flex items-center gap-4 text-xs text-text-secondary flex-wrap">
         <div className="flex items-center gap-1">
           <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: color }} />
-          <span>Completa</span>
+          <span>Pieza completa</span>
         </div>
         <div className="flex items-center gap-1">
-          <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: `${color}AA` }} />
-          <span>Con corte (punteado)</span>
+          <span className="w-3 h-3 rounded-sm border border-dashed border-gray-500" style={{ backgroundColor: `${color}88` }} />
+          <span>Pieza con corte</span>
         </div>
         {isFloor && (
           <div className="flex items-center gap-1">
-            <span className="w-3 h-3 rounded-sm bg-amber-500/50" />
+            <span className="w-3 h-3 rounded-sm bg-blue-400/50 border border-dashed border-blue-400" />
             <span>Patrón cocido</span>
           </div>
         )}

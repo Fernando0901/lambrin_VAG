@@ -55,43 +55,113 @@ export default function ResultsTable({ calculationBoth, viewMode: externalViewMo
   const { venta, costo, margenMonto, margenPct } = calculationBoth
   const current = priceMode === 'venta' ? venta : costo
 
-  const bgTint = priceMode === 'costo'
-    ? 'bg-red-950/10'
-    : 'bg-green-950/10'
-
+  const bgTint = priceMode === 'costo' ? 'bg-red-950/10' : 'bg-green-950/10'
   const labelMode = priceMode === 'venta' ? 'Venta' : 'Costo'
   const headerLabel = priceMode === 'venta'
     ? 'Resultados — Precio de Venta (sin IVA / con IVA)'
     : 'Resultados — Precio de Costo (sin IVA / con IVA)'
 
-  const materialRows = [
-    {
-      concept: `${current.product.name} por pieza`,
-      quantity: current.piecesNeeded,
+  // Desglose de material
+  const { fullBoxes, loosePieces, piecesPerBox, piecesNeeded, boxesNeeded } = current
+
+  // Filas de material según modo de vista
+  const materialRows = []
+  if (viewMode === 'piece') {
+    materialRows.push({
+      concept: `${current.product.name} (pieza)`,
+      quantity: piecesNeeded,
+      unit: 'pzas',
       unitPrice: current.pricePieza,
       unitPriceWithIVA: current.pricePieza * (1 + IVA),
       subtotal: current.materialTotal,
       subtotalWithIVA: current.materialTotalWithIVA
-    },
-    {
-      concept: `${current.product.name} por caja`,
-      quantity: current.boxesNeeded,
-      unitPrice: current.priceCaja,
-      unitPriceWithIVA: current.priceCaja * (1 + IVA),
-      subtotal: current.materialBoxTotal,
-      subtotalWithIVA: current.materialBoxTotalWithIVA
+    })
+  } else {
+    // Por caja: mostrar cajas completas + piezas sueltas
+    if (fullBoxes > 0) {
+      materialRows.push({
+        concept: `${current.product.name} (caja ×${piecesPerBox} pzas)`,
+        quantity: fullBoxes,
+        unit: fullBoxes === 1 ? 'caja' : 'cajas',
+        unitPrice: current.priceCaja,
+        unitPriceWithIVA: current.priceCaja * (1 + IVA),
+        subtotal: fullBoxes * current.priceCaja,
+        subtotalWithIVA: fullBoxes * current.priceCaja * (1 + IVA)
+      })
     }
-  ]
+    if (loosePieces > 0) {
+      materialRows.push({
+        concept: `${current.product.name} — piezas sueltas`,
+        quantity: loosePieces,
+        unit: loosePieces === 1 ? 'pza' : 'pzas',
+        unitPrice: current.pricePieza,
+        unitPriceWithIVA: current.pricePieza * (1 + IVA),
+        subtotal: loosePieces * current.pricePieza,
+        subtotalWithIVA: loosePieces * current.pricePieza * (1 + IVA),
+        isExtra: true
+      })
+    }
+  }
 
-  const accessoryRows = current.accessories.map((acc, i) => ({
-    concept: acc.name,
-    quantity: acc.quantity,
-    unitPrice: acc.unitPrice,
-    unitPriceWithIVA: acc.unitPriceWithIVA,
-    subtotal: acc.quantity * acc.unitPrice,
-    subtotalWithIVA: acc.quantity * acc.unitPriceWithIVA,
-    hasBox: acc.boxPrice !== undefined && acc.boxPrice !== null
-  }))
+  // Accesorios
+  const accessoryRows = current.accessories.map((acc) => {
+    const accFullBoxes = acc.piecesPerBox ? Math.floor(acc.quantity / acc.piecesPerBox) : 0
+    const accLoose = acc.piecesPerBox ? acc.quantity - accFullBoxes * acc.piecesPerBox : acc.quantity
+
+    if (viewMode === 'box' && acc.boxPrice != null && acc.piecesPerBox) {
+      const rows = []
+      if (accFullBoxes > 0) {
+        rows.push({
+          concept: `${acc.name} (caja ×${acc.piecesPerBox})`,
+          quantity: accFullBoxes,
+          unit: accFullBoxes === 1 ? 'caja' : 'cajas',
+          unitPrice: acc.boxPrice,
+          unitPriceWithIVA: acc.boxPriceWithIVA,
+          subtotal: accFullBoxes * acc.boxPrice,
+          subtotalWithIVA: accFullBoxes * acc.boxPriceWithIVA
+        })
+      }
+      if (accLoose > 0) {
+        rows.push({
+          concept: `${acc.name} — sueltos`,
+          quantity: accLoose,
+          unit: 'pzas',
+          unitPrice: acc.unitPrice,
+          unitPriceWithIVA: acc.unitPriceWithIVA,
+          subtotal: accLoose * acc.unitPrice,
+          subtotalWithIVA: accLoose * acc.unitPriceWithIVA,
+          isExtra: true
+        })
+      }
+      if (rows.length === 0) {
+        rows.push({
+          concept: acc.name,
+          quantity: acc.quantity,
+          unit: 'pzas',
+          unitPrice: acc.unitPrice,
+          unitPriceWithIVA: acc.unitPriceWithIVA,
+          subtotal: acc.quantity * acc.unitPrice,
+          subtotalWithIVA: acc.quantity * acc.unitPriceWithIVA
+        })
+      }
+      return rows
+    }
+
+    return [{
+      concept: acc.name,
+      quantity: acc.quantity,
+      unit: 'pzas',
+      unitPrice: acc.unitPrice,
+      unitPriceWithIVA: acc.unitPriceWithIVA,
+      subtotal: acc.quantity * acc.unitPrice,
+      subtotalWithIVA: acc.quantity * acc.unitPriceWithIVA
+    }]
+  }).flat()
+
+  const allRows = [...materialRows, ...accessoryRows]
+  const subtotalSinIVA = allRows.reduce((sum, r) => sum + r.subtotal, 0)
+  const subtotalConIVA = subtotalSinIVA * (1 + IVA)
+  const ivaAmount = subtotalConIVA - subtotalSinIVA
 
   return (
     <motion.div
@@ -100,7 +170,7 @@ export default function ResultsTable({ calculationBoth, viewMode: externalViewMo
       className={`rounded-xl border border-border-subtle overflow-hidden ${bgTint}`}
     >
       <div className="p-4 border-b border-border-subtle flex items-center justify-between flex-wrap gap-3 bg-surface">
-        <h3 className="font-heading font-semibold text-text-primary uppercase tracking-wide">
+        <h3 className="font-heading font-semibold text-text-primary uppercase tracking-wide text-sm">
           {headerLabel}
         </h3>
         <div className="flex items-center gap-2 bg-bg-dark rounded-lg p-1">
@@ -127,6 +197,24 @@ export default function ResultsTable({ calculationBoth, viewMode: externalViewMo
         </div>
       </div>
 
+      {/* Resumen de material rápido */}
+      <div className="bg-surface px-4 py-3 border-b border-border-subtle/50">
+        <div className="flex items-center gap-4 flex-wrap text-xs">
+          <span className="text-text-secondary">
+            Total: <span className="text-accent font-bold text-sm">{piecesNeeded} piezas</span>
+          </span>
+          <span className="text-text-secondary">
+            = <span className="text-text-primary font-medium">{fullBoxes} caja{fullBoxes !== 1 ? 's' : ''}</span>
+            {loosePieces > 0 && (
+              <> + <span className="text-amber-400 font-medium">{loosePieces} pieza{loosePieces !== 1 ? 's' : ''} suelta{loosePieces !== 1 ? 's' : ''}</span></>
+            )}
+          </span>
+          <span className="text-text-secondary">
+            ({piecesPerBox} pzas/caja)
+          </span>
+        </div>
+      </div>
+
       <div className="overflow-x-auto bg-surface">
         <table className="w-full">
           <thead>
@@ -140,89 +228,42 @@ export default function ResultsTable({ calculationBoth, viewMode: externalViewMo
             </tr>
           </thead>
           <tbody>
-            {viewMode === 'piece' ? (
-              <>
-                {materialRows.map((row, idx) => (
-                  <motion.tr
-                    key={`m-${idx}`}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: idx * 0.05 }}
-                    className="border-t border-border-subtle/50 hover:bg-bg-dark/30"
-                  >
-                    <td className="p-3 text-text-primary">{row.concept}</td>
-                    <td className="p-3 text-right text-text-secondary">{row.quantity}</td>
-                    <td className="p-3 text-right text-text-secondary">{formatCurrency(row.unitPrice)}</td>
-                    <td className="p-3 text-right text-text-secondary">{formatCurrency(row.unitPriceWithIVA)}</td>
-                    <td className="p-3 text-right text-text-primary font-medium">{formatCurrency(row.subtotal)}</td>
-                    <td className="p-3 text-right text-accent font-medium">{formatCurrency(row.subtotalWithIVA)}</td>
-                  </motion.tr>
-                ))}
-                {accessoryRows.map((row, idx) => (
-                  <motion.tr
-                    key={`a-${idx}`}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: (materialRows.length + idx) * 0.05 }}
-                    className="border-t border-border-subtle/50 hover:bg-bg-dark/30"
-                  >
-                    <td className="p-3 text-text-primary">{row.concept}</td>
-                    <td className="p-3 text-right text-text-secondary">{row.quantity}</td>
-                    <td className="p-3 text-right text-text-secondary">{formatCurrency(row.unitPrice)}</td>
-                    <td className="p-3 text-right text-text-secondary">{formatCurrency(row.unitPriceWithIVA)}</td>
-                    <td className="p-3 text-right text-text-primary font-medium">{formatCurrency(row.subtotal)}</td>
-                    <td className="p-3 text-right text-accent font-medium">{formatCurrency(row.subtotalWithIVA)}</td>
-                  </motion.tr>
-                ))}
-              </>
-            ) : (
-              <>
-                <motion.tr
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  className="border-t border-border-subtle/50 hover:bg-bg-dark/30"
-                >
-                  <td className="p-3 text-text-primary">{current.product.name} por caja</td>
-                  <td className="p-3 text-right text-text-secondary">{current.boxesNeeded}</td>
-                  <td className="p-3 text-right text-text-secondary">{formatCurrency(current.priceCaja)}</td>
-                  <td className="p-3 text-right text-text-secondary">{formatCurrency(current.priceCaja * (1 + IVA))}</td>
-                  <td className="p-3 text-right text-text-primary font-medium">{formatCurrency(current.materialBoxTotal)}</td>
-                  <td className="p-3 text-right text-accent font-medium">{formatCurrency(current.materialBoxTotalWithIVA)}</td>
-                </motion.tr>
-                {accessoryRows.filter(r => r.hasBox).map((row, idx) => (
-                  <motion.tr
-                    key={`ab-${idx}`}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: (idx + 1) * 0.05 }}
-                    className="border-t border-border-subtle/50 hover:bg-bg-dark/30"
-                  >
-                    <td className="p-3 text-text-primary">{row.concept} (caja)</td>
-                    <td className="p-3 text-right text-text-secondary">{Math.ceil(row.quantity / (row.piecesPerBox || 1))}</td>
-                    <td className="p-3 text-right text-text-secondary">{formatCurrency(row.unitPrice)}</td>
-                    <td className="p-3 text-right text-text-secondary">{formatCurrency(row.unitPriceWithIVA)}</td>
-                    <td className="p-3 text-right text-text-primary font-medium">{formatCurrency(row.subtotal)}</td>
-                    <td className="p-3 text-right text-accent font-medium">{formatCurrency(row.subtotalWithIVA)}</td>
-                  </motion.tr>
-                ))}
-              </>
-            )}
+            {allRows.map((row, idx) => (
+              <motion.tr
+                key={`row-${idx}`}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: idx * 0.04 }}
+                className={`border-t border-border-subtle/50 hover:bg-bg-dark/30 ${row.isExtra ? 'bg-amber-500/5' : ''}`}
+              >
+                <td className="p-3 text-text-primary text-sm">
+                  {row.concept}
+                  {row.isExtra && <span className="ml-1 text-[10px] text-amber-400 font-medium">(extra)</span>}
+                </td>
+                <td className="p-3 text-right text-text-secondary text-sm">{row.quantity} {row.unit}</td>
+                <td className="p-3 text-right text-text-secondary text-sm">{formatCurrency(row.unitPrice)}</td>
+                <td className="p-3 text-right text-text-secondary text-sm">{formatCurrency(row.unitPriceWithIVA)}</td>
+                <td className="p-3 text-right text-text-primary font-medium text-sm">{formatCurrency(row.subtotal)}</td>
+                <td className="p-3 text-right text-accent font-medium text-sm">{formatCurrency(row.subtotalWithIVA)}</td>
+              </motion.tr>
+            ))}
           </tbody>
         </table>
       </div>
 
+      {/* Totales */}
       <div className="border-t border-border-subtle bg-bg-dark/50">
         <div className="p-4 space-y-2">
           <div className="flex justify-between items-center py-2 border-b border-border-subtle/30">
             <span className="text-text-secondary">Subtotal s/IVA</span>
-            <AnimatedNumber value={current.grandTotal} className="text-text-primary font-medium" />
+            <AnimatedNumber value={subtotalSinIVA} className="text-text-primary font-medium" />
           </div>
           <div className="flex justify-between items-center py-2 border-b border-border-subtle/30">
             <span className="text-text-secondary">IVA (16%)</span>
-            <AnimatedNumber value={current.ivaAmount} className="text-amber-400 font-medium" />
+            <AnimatedNumber value={ivaAmount} className="text-amber-400 font-medium" />
           </div>
           <motion.div
-            key={current.grandTotalWithIVA}
+            key={subtotalConIVA}
             initial={{ scale: 1 }}
             animate={{ scale: [1, 1.02, 1] }}
             transition={{ duration: 0.3 }}
@@ -238,7 +279,7 @@ export default function ResultsTable({ calculationBoth, viewMode: externalViewMo
             <span className={`text-2xl font-heading font-bold ${
               priceMode === 'venta' ? 'text-green-400' : 'text-red-400'
             }`}>
-              <AnimatedNumber value={current.grandTotalWithIVA} className="" />
+              <AnimatedNumber value={subtotalConIVA} className="" />
             </span>
           </motion.div>
 
