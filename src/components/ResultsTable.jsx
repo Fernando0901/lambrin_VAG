@@ -51,32 +51,30 @@ export default function ResultsTable({
   const { priceMode } = usePrices()
   const [viewMode, setViewMode] = useState('desglose')
 
-  if (!calculationBoth) {
-    return (
-      <div className="bg-surface rounded-xl border border-border-subtle p-6 text-center">
-        <p className="text-text-secondary">Agrega al menos un área para ver los resultados</p>
-      </div>
-    )
-  }
+  // Extract values safely (hooks must always run, so no early return above useMemo)
+  const venta = calculationBoth?.venta ?? null
+  const costo = calculationBoth?.costo ?? null
+  const margenMonto = calculationBoth?.margenMonto ?? 0
+  const margenPct = calculationBoth?.margenPct ?? 0
 
-  const { venta, costo, margenMonto, margenPct } = calculationBoth
   const current = priceMode === 'venta' ? venta : costo
-  const bgTint = priceMode === 'costo' ? 'bg-red-950/10' : 'bg-green-950/10'
-  const labelMode = priceMode === 'venta' ? 'Venta' : 'Costo'
 
-  const {
-    fullBoxes, loosePieces, piecesPerBox, piecesNeeded, boxesNeeded,
-    pricePieza, priceCaja
-  } = current
+  const fullBoxes = current?.fullBoxes ?? 0
+  const loosePieces = current?.loosePieces ?? 0
+  const piecesPerBox = current?.piecesPerBox ?? 1
+  const piecesNeeded = current?.piecesNeeded ?? 0
+  const boxesNeeded = current?.boxesNeeded ?? 0
+  const pricePieza = current?.pricePieza ?? 0
+  const priceCaja = current?.priceCaja ?? 0
 
-  const hasAccessories = current.accessories.length > 0
+  const hasAccessories = (current?.accessories?.length ?? 0) > 0
   const discountPct = Math.max(0, Math.min(100, discount || 0))
-  const discountMultiplier = 1 - discountPct / 100
 
-  /* ─── build rows ─── */
+  /* ─── build rows (hook always runs) ─── */
   const { materialRows, accessoryRows } = useMemo(() => {
     const mat = []
     const acc = []
+    if (!current) return { materialRows: mat, accessoryRows: acc }
 
     if (viewMode === 'piece') {
       mat.push({
@@ -141,25 +139,33 @@ export default function ResultsTable({
     return { materialRows: mat, accessoryRows: acc }
   }, [viewMode, current, includeAccessories, fullBoxes, loosePieces, piecesNeeded, boxesNeeded, pricePieza, priceCaja, piecesPerBox])
 
+  // ── Early return AFTER all hooks ──
+  if (!calculationBoth || !current) {
+    return (
+      <div className="bg-surface rounded-xl border border-border-subtle p-6 text-center">
+        <p className="text-text-secondary">Agrega al menos un área para ver los resultados</p>
+      </div>
+    )
+  }
+
+  const bgTint = priceMode === 'costo' ? 'bg-red-950/10' : 'bg-green-950/10'
+  const labelMode = priceMode === 'venta' ? 'Venta' : 'Costo'
+
   const allRows = [...materialRows, ...accessoryRows]
   const subtotalSinIVA = allRows.reduce((s, r) => s + r.total, 0)
-
   const descuentoMonto = subtotalSinIVA * (discountPct / 100)
   const subtotalConDescuento = subtotalSinIVA - descuentoMonto
   const ivaAmount = subtotalConDescuento * IVA
   const totalConIVA = subtotalConDescuento + ivaAmount
 
-  // m² cost
   const costPerM2 = current.totalArea > 0 ? totalConIVA / current.totalArea : 0
 
-  // Waste / efficiency
   const piecesFromBoxes = boxesNeeded * piecesPerBox
   const wastePieces = piecesFromBoxes - piecesNeeded
   const wasteM2 = wastePieces * current.pieceWidth * current.pieceLength
   const efficiencyPct = current.totalArea > 0
     ? ((current.totalArea / (current.totalArea + wasteM2)) * 100).toFixed(1) : '100.0'
 
-  // Price comparison across the 3 modes
   const priceByPiece = piecesNeeded * pricePieza
   const priceByBox = boxesNeeded * priceCaja
   const priceDesglose = (fullBoxes * priceCaja) + (loosePieces * pricePieza)
@@ -456,11 +462,11 @@ export default function ResultsTable({
             </div>
             <div className="flex justify-between items-center mt-1">
               <span className="text-text-secondary">Costo c/IVA</span>
-              <span className="text-red-400">{formatCurrency(costo.grandTotalWithIVA)}</span>
+              <span className="text-red-400">{formatCurrency(costo?.grandTotalWithIVA ?? 0)}</span>
             </div>
             <div className="flex justify-between items-center mt-1">
               <span className="text-text-secondary">Venta c/IVA</span>
-              <span className="text-green-400">{formatCurrency(venta.grandTotalWithIVA)}</span>
+              <span className="text-green-400">{formatCurrency(venta?.grandTotalWithIVA ?? 0)}</span>
             </div>
           </div>
         </div>
@@ -468,7 +474,6 @@ export default function ResultsTable({
 
       {/* ── Actions ── */}
       <div className="p-4 border-t border-border-subtle bg-surface flex gap-2">
-        {/* WhatsApp */}
         <button onClick={() => {
           const lines = [
             `*Cotización — ${current.product.name}*`,
@@ -491,7 +496,6 @@ export default function ResultsTable({
           WhatsApp
         </button>
 
-        {/* Copy */}
         <button onClick={() => {
           const lines = [
             `Cotización — ${current.product.name}`,
