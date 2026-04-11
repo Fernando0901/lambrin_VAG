@@ -20,6 +20,8 @@ function App() {
   const [customProductPanelOpen, setCustomProductPanelOpen] = useState(false)
   const [orientation, setOrientation] = useState('horizontal')
   const [includeAccessories, setIncludeAccessories] = useState(true)
+  const [discount, setDiscount] = useState(0)
+  const [clientName, setClientName] = useState('')
 
   const { prices, priceMode, showToast, toastMessage, customProducts } = usePrices()
 
@@ -169,6 +171,8 @@ function App() {
                 calculationBoth={calculationBoth}
                 priceMode={priceMode}
                 includeAccessories={includeAccessories}
+                discount={discount}
+                clientName={clientName}
               />
             </div>
 
@@ -193,6 +197,10 @@ function App() {
                 calculationBoth={calculationBoth}
                 includeAccessories={includeAccessories}
                 onToggleAccessories={() => setIncludeAccessories(prev => !prev)}
+                discount={discount}
+                onDiscountChange={setDiscount}
+                clientName={clientName}
+                onClientNameChange={setClientName}
               />
             </div>
           </motion.div>
